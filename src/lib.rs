@@ -1,0 +1,232 @@
+//! # ironpress
+//!
+//! Pure Rust HTML/CSS-to-PDF converter — no browser, no external dependencies.
+//!
+//! Converts HTML with inline CSS styles into PDF documents using a built-in
+//! layout engine. Supports headings, paragraphs, bold/italic text, colors,
+//! tables, lists, page breaks, and more.
+//!
+//! ## Quick start
+//!
+//! ```
+//! use ironpress::html_to_pdf;
+//!
+//! let pdf_bytes = html_to_pdf("<h1>Hello</h1><p>World</p>").unwrap();
+//! assert!(pdf_bytes.starts_with(b"%PDF"));
+//! ```
+//!
+//! ## With options
+//!
+//! ```
+//! use ironpress::{HtmlConverter, PageSize, Margin};
+//!
+//! let pdf = HtmlConverter::new()
+//!     .page_size(PageSize::LETTER)
+//!     .margin(Margin::uniform(54.0))
+//!     .convert("<h1>Hello</h1>")
+//!     .unwrap();
+//! ```
+
+pub mod error;
+pub mod layout;
+pub mod parser;
+pub mod render;
+pub mod security;
+pub mod style;
+pub mod types;
+
+pub use error::IronpressError;
+pub use types::{Margin, PageSize};
+
+/// Convert an HTML string to PDF bytes using default settings (A4, 1-inch margins).
+///
+/// The HTML is sanitized before conversion to remove potentially dangerous
+/// elements like `<script>`, `<iframe>`, and event handlers.
+///
+/// # Example
+///
+/// ```
+/// let pdf = ironpress::html_to_pdf("<h1>Title</h1><p>Hello World</p>").unwrap();
+/// assert!(pdf.starts_with(b"%PDF"));
+/// ```
+pub fn html_to_pdf(html: &str) -> Result<Vec<u8>, IronpressError> {
+    HtmlConverter::new().convert(html)
+}
+
+/// Convert an HTML file to a PDF file using default settings.
+///
+/// # Example
+///
+/// ```no_run
+/// ironpress::convert_file("input.html", "output.pdf").unwrap();
+/// ```
+pub fn convert_file(input: &str, output: &str) -> Result<(), IronpressError> {
+    let html = std::fs::read_to_string(input)?;
+    let pdf = html_to_pdf(&html)?;
+    std::fs::write(output, pdf)?;
+    Ok(())
+}
+
+/// Builder for HTML-to-PDF conversion with custom options.
+pub struct HtmlConverter {
+    page_size: PageSize,
+    margin: Margin,
+    sanitize: bool,
+}
+
+impl HtmlConverter {
+    /// Create a new converter with default settings (A4, 1-inch margins, sanitization enabled).
+    pub fn new() -> Self {
+        Self {
+            page_size: PageSize::default(),
+            margin: Margin::default(),
+            sanitize: true,
+        }
+    }
+
+    /// Set the page size.
+    pub fn page_size(mut self, size: PageSize) -> Self {
+        self.page_size = size;
+        self
+    }
+
+    /// Set the page margins.
+    pub fn margin(mut self, margin: Margin) -> Self {
+        self.margin = margin;
+        self
+    }
+
+    /// Enable or disable HTML sanitization (enabled by default).
+    pub fn sanitize(mut self, enabled: bool) -> Self {
+        self.sanitize = enabled;
+        self
+    }
+
+    /// Convert an HTML string to PDF bytes.
+    pub fn convert(&self, html: &str) -> Result<Vec<u8>, IronpressError> {
+        // Step 1: Sanitize
+        let html = if self.sanitize {
+            security::sanitizer::sanitize_html(html)?
+        } else {
+            html.to_string()
+        };
+
+        // Step 2: Parse HTML
+        let nodes = parser::html::parse_html(&html)?;
+
+        // Step 3: Layout
+        let pages = layout::engine::layout(&nodes, self.page_size, self.margin);
+
+        // Step 4: Render PDF
+        render::pdf::render_pdf(&pages, self.page_size, self.margin)
+    }
+}
+
+impl Default for HtmlConverter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn html_to_pdf_basic() {
+        let pdf = html_to_pdf("<h1>Hello</h1><p>World</p>").unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("%%EOF"));
+    }
+
+    #[test]
+    fn html_to_pdf_with_styles() {
+        let html = r#"<h1 style="color: red; text-align: center">Title</h1>
+                      <p style="font-size: 14pt">Some text here.</p>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_with_formatting() {
+        let html = "<p>Normal <strong>bold</strong> <em>italic</em> <u>underline</u></p>";
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Helvetica-Bold"));
+        assert!(content.contains("Helvetica-Oblique"));
+    }
+
+    #[test]
+    fn html_to_pdf_empty() {
+        let pdf = html_to_pdf("").unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_sanitizes_script() {
+        let html = "<p>Safe</p><script>alert('xss')</script>";
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(!content.contains("alert"));
+        assert!(content.contains("Safe"));
+    }
+
+    #[test]
+    fn converter_builder() {
+        let pdf = HtmlConverter::new()
+            .page_size(PageSize::LETTER)
+            .margin(Margin::uniform(54.0))
+            .convert("<p>Test</p>")
+            .unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn converter_no_sanitize() {
+        let pdf = HtmlConverter::new()
+            .sanitize(false)
+            .convert("<p>Test</p>")
+            .unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_headings() {
+        let html = "<h1>H1</h1><h2>H2</h2><h3>H3</h3><h4>H4</h4><h5>H5</h5><h6>H6</h6>";
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_horizontal_rule() {
+        let pdf = html_to_pdf("<p>Above</p><hr><p>Below</p>").unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_line_break() {
+        let pdf = html_to_pdf("<p>Line one<br>Line two</p>").unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_full_document() {
+        let html = r#"
+            <html>
+            <head><title>Test</title></head>
+            <body>
+                <h1>Document Title</h1>
+                <p>This is a <strong>bold</strong> and <em>italic</em> paragraph.</p>
+                <hr>
+                <p style="color: blue; text-align: center">Centered blue text.</p>
+            </body>
+            </html>
+        "#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Document"));
+        assert!(content.contains("Title"));
+    }
+}

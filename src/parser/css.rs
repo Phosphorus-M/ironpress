@@ -1,0 +1,288 @@
+use std::collections::HashMap;
+
+use crate::types::Color;
+
+/// Parsed CSS property value.
+#[derive(Debug, Clone)]
+pub enum CssValue {
+    Length(f32),
+    Color(Color),
+    Keyword(String),
+    Number(f32),
+}
+
+/// A map of CSS property names to values.
+#[derive(Debug, Clone, Default)]
+pub struct StyleMap {
+    pub properties: HashMap<String, CssValue>,
+}
+
+impl StyleMap {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set(&mut self, key: &str, value: CssValue) {
+        self.properties.insert(key.to_string(), value);
+    }
+
+    pub fn get(&self, key: &str) -> Option<&CssValue> {
+        self.properties.get(key)
+    }
+
+    pub fn merge(&mut self, other: &StyleMap) {
+        for (k, v) in &other.properties {
+            self.properties.insert(k.clone(), v.clone());
+        }
+    }
+}
+
+/// Parse an inline CSS style string (e.g. "color: red; font-size: 14px").
+pub fn parse_inline_style(style: &str) -> StyleMap {
+    let mut map = StyleMap::new();
+
+    for declaration in style.split(';') {
+        let declaration = declaration.trim();
+        if declaration.is_empty() {
+            continue;
+        }
+
+        if let Some((prop, val)) = declaration.split_once(':') {
+            let prop = prop.trim().to_ascii_lowercase();
+            let val = val.trim();
+
+            if let Some(css_val) = parse_value(&prop, val) {
+                // Handle shorthand margin/padding
+                if (prop == "margin" || prop == "padding") && !prop.contains('-') {
+                    if let CssValue::Length(v) = css_val {
+                        map.set(&format!("{prop}-top"), CssValue::Length(v));
+                        map.set(&format!("{prop}-right"), CssValue::Length(v));
+                        map.set(&format!("{prop}-bottom"), CssValue::Length(v));
+                        map.set(&format!("{prop}-left"), CssValue::Length(v));
+                    }
+                } else {
+                    map.set(&prop, css_val);
+                }
+            }
+        }
+    }
+
+    map
+}
+
+fn parse_value(property: &str, val: &str) -> Option<CssValue> {
+    let val = val.trim();
+
+    // Color properties
+    if property.contains("color") {
+        return parse_color(val);
+    }
+
+    // Font-weight
+    if property == "font-weight" {
+        return Some(CssValue::Keyword(val.to_string()));
+    }
+
+    // Font-style
+    if property == "font-style" {
+        return Some(CssValue::Keyword(val.to_string()));
+    }
+
+    // Text-align, text-decoration, display
+    if property == "text-align" || property == "text-decoration" || property == "display" {
+        return Some(CssValue::Keyword(val.to_string()));
+    }
+
+    // Page break
+    if property.starts_with("page-break") {
+        return Some(CssValue::Keyword(val.to_string()));
+    }
+
+    // Length values (font-size, margin, padding, width, height, etc.)
+    parse_length(val)
+}
+
+fn parse_length(val: &str) -> Option<CssValue> {
+    let val = val.trim();
+
+    if let Some(n) = val.strip_suffix("px") {
+        n.trim()
+            .parse::<f32>()
+            .ok()
+            .map(|v| CssValue::Length(v * 0.75)) // px to pt
+    } else if let Some(n) = val.strip_suffix("pt") {
+        n.trim().parse::<f32>().ok().map(CssValue::Length)
+    } else if let Some(n) = val.strip_suffix("em") {
+        // Store em as negative to distinguish from absolute values
+        // Will be resolved during style computation
+        n.trim().parse::<f32>().ok().map(CssValue::Number)
+    } else if val.parse::<f32>().is_ok() {
+        val.parse::<f32>().ok().map(CssValue::Length)
+    } else {
+        None
+    }
+}
+
+fn parse_color(val: &str) -> Option<CssValue> {
+    let val = val.trim().to_ascii_lowercase();
+
+    // Named colors
+    let color = match val.as_str() {
+        "black" => Color::rgb(0, 0, 0),
+        "white" => Color::rgb(255, 255, 255),
+        "red" => Color::rgb(255, 0, 0),
+        "green" => Color::rgb(0, 128, 0),
+        "blue" => Color::rgb(0, 0, 255),
+        "yellow" => Color::rgb(255, 255, 0),
+        "orange" => Color::rgb(255, 165, 0),
+        "purple" => Color::rgb(128, 0, 128),
+        "gray" | "grey" => Color::rgb(128, 128, 128),
+        "silver" => Color::rgb(192, 192, 192),
+        "maroon" => Color::rgb(128, 0, 0),
+        "navy" => Color::rgb(0, 0, 128),
+        "teal" => Color::rgb(0, 128, 128),
+        "aqua" | "cyan" => Color::rgb(0, 255, 255),
+        "fuchsia" | "magenta" => Color::rgb(255, 0, 255),
+        "lime" => Color::rgb(0, 255, 0),
+        _ => {
+            // Hex color
+            if let Some(hex) = val.strip_prefix('#') {
+                return parse_hex_color(hex);
+            }
+            // rgb() function
+            if let Some(inner) = val.strip_prefix("rgb(").and_then(|s| s.strip_suffix(')')) {
+                return parse_rgb_function(inner);
+            }
+            return None;
+        }
+    };
+
+    Some(CssValue::Color(color))
+}
+
+fn parse_hex_color(hex: &str) -> Option<CssValue> {
+    let hex = hex.trim();
+    let (r, g, b) = match hex.len() {
+        3 => {
+            let r = u8::from_str_radix(&hex[0..1].repeat(2), 16).ok()?;
+            let g = u8::from_str_radix(&hex[1..2].repeat(2), 16).ok()?;
+            let b = u8::from_str_radix(&hex[2..3].repeat(2), 16).ok()?;
+            (r, g, b)
+        }
+        6 => {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            (r, g, b)
+        }
+        _ => return None,
+    };
+    Some(CssValue::Color(Color::rgb(r, g, b)))
+}
+
+fn parse_rgb_function(inner: &str) -> Option<CssValue> {
+    let parts: Vec<&str> = inner.split(',').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let r = parts[0].trim().parse::<u8>().ok()?;
+    let g = parts[1].trim().parse::<u8>().ok()?;
+    let b = parts[2].trim().parse::<u8>().ok()?;
+    Some(CssValue::Color(Color::rgb(r, g, b)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_font_size_px() {
+        let style = parse_inline_style("font-size: 16px");
+        match style.get("font-size") {
+            Some(CssValue::Length(v)) => assert!((v - 12.0).abs() < 0.1), // 16px * 0.75 = 12pt
+            other => panic!("Expected Length, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_color_named() {
+        let style = parse_inline_style("color: red");
+        match style.get("color") {
+            Some(CssValue::Color(c)) => {
+                assert_eq!(c.r, 255);
+                assert_eq!(c.g, 0);
+                assert_eq!(c.b, 0);
+            }
+            other => panic!("Expected Color, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_color_hex() {
+        let style = parse_inline_style("color: #ff0000");
+        match style.get("color") {
+            Some(CssValue::Color(c)) => assert_eq!(c.r, 255),
+            other => panic!("Expected Color, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_color_hex_short() {
+        let style = parse_inline_style("color: #f00");
+        match style.get("color") {
+            Some(CssValue::Color(c)) => {
+                assert_eq!(c.r, 255);
+                assert_eq!(c.g, 0);
+            }
+            other => panic!("Expected Color, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_color_rgb() {
+        let style = parse_inline_style("color: rgb(128, 64, 32)");
+        match style.get("color") {
+            Some(CssValue::Color(c)) => {
+                assert_eq!(c.r, 128);
+                assert_eq!(c.g, 64);
+                assert_eq!(c.b, 32);
+            }
+            other => panic!("Expected Color, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_margin_shorthand() {
+        let style = parse_inline_style("margin: 10px");
+        match style.get("margin-top") {
+            Some(CssValue::Length(v)) => assert!((v - 7.5).abs() < 0.1),
+            other => panic!("Expected Length, got {:?}", other),
+        }
+        assert!(style.get("margin-bottom").is_some());
+        assert!(style.get("margin-left").is_some());
+        assert!(style.get("margin-right").is_some());
+    }
+
+    #[test]
+    fn parse_multiple_properties() {
+        let style = parse_inline_style("font-size: 14pt; color: blue; text-align: center");
+        assert!(style.get("font-size").is_some());
+        assert!(style.get("color").is_some());
+        assert!(style.get("text-align").is_some());
+    }
+
+    #[test]
+    fn parse_empty_style() {
+        let style = parse_inline_style("");
+        assert!(style.properties.is_empty());
+    }
+
+    #[test]
+    fn parse_font_weight() {
+        let style = parse_inline_style("font-weight: bold");
+        match style.get("font-weight") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "bold"),
+            other => panic!("Expected Keyword, got {:?}", other),
+        }
+    }
+}
