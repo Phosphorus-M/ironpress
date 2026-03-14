@@ -219,4 +219,100 @@ mod tests {
         let style = compute_style(HtmlTag::Em, None, &parent);
         assert_eq!(style.font_style, FontStyle::Italic);
     }
+
+    #[test]
+    fn em_font_size() {
+        let parent = ComputedStyle::default(); // font_size = 12.0
+        let style = compute_style(HtmlTag::Span, Some("font-size: 2em"), &parent);
+        // em gets parsed as Number, then multiplied by parent font_size
+        assert!((style.font_size - 24.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn font_weight_normal() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Span, Some("font-weight: normal"), &parent);
+        assert_eq!(style.font_weight, FontWeight::Normal);
+    }
+
+    #[test]
+    fn font_style_normal() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Span, Some("font-style: normal"), &parent);
+        assert_eq!(style.font_style, FontStyle::Normal);
+    }
+
+    #[test]
+    fn background_color_applied() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("background-color: red"), &parent);
+        assert!(style.background_color.is_some());
+        let bg = style.background_color.unwrap();
+        assert_eq!(bg.r, 255);
+    }
+
+    #[test]
+    fn margin_and_padding_individual() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(
+            HtmlTag::Div,
+            Some("margin-top: 10pt; margin-right: 20pt; margin-bottom: 30pt; margin-left: 40pt; padding-top: 5pt; padding-right: 6pt; padding-bottom: 7pt; padding-left: 8pt"),
+            &parent,
+        );
+        assert!((style.margin.top - 10.0).abs() < 0.1);
+        assert!((style.margin.right - 20.0).abs() < 0.1);
+        assert!((style.margin.bottom - 30.0).abs() < 0.1);
+        assert!((style.margin.left - 40.0).abs() < 0.1);
+        assert!((style.padding.top - 5.0).abs() < 0.1);
+        assert!((style.padding.right - 6.0).abs() < 0.1);
+        assert!((style.padding.bottom - 7.0).abs() < 0.1);
+        assert!((style.padding.left - 8.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn text_align_center_and_right() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("text-align: center"), &parent);
+        assert_eq!(style.text_align, TextAlign::Center);
+        let style = compute_style(HtmlTag::Div, Some("text-align: right"), &parent);
+        assert_eq!(style.text_align, TextAlign::Right);
+    }
+
+    #[test]
+    fn text_decoration_underline() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Span, Some("text-decoration: underline"), &parent);
+        assert!(style.text_decoration_underline);
+    }
+
+    #[test]
+    fn line_height_number_and_length() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("line-height: 18pt"), &parent);
+        // 18pt / 12.0 font-size = 1.5
+        assert!((style.line_height - 1.5).abs() < 0.1);
+    }
+
+    #[test]
+    fn page_break_after() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("page-break-after: always"), &parent);
+        assert!(style.page_break_after);
+    }
+
+    #[test]
+    fn text_align_default_fallback() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("text-align: justify"), &parent);
+        // "justify" is not handled, should fall back to Left
+        assert_eq!(style.text_align, TextAlign::Left);
+    }
+
+    #[test]
+    fn line_height_as_number() {
+        let parent = ComputedStyle::default();
+        // line-height: 1.8em — em gets parsed as Number
+        let style = compute_style(HtmlTag::Div, Some("line-height: 1.8em"), &parent);
+        assert!((style.line_height - 1.8).abs() < 0.1);
+    }
 }

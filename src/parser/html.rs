@@ -143,4 +143,15 @@ mod tests {
         let nodes = parse_html("").unwrap();
         assert!(nodes.is_empty());
     }
+
+    #[test]
+    fn html_comment_ignored() {
+        // Comments should hit the _ => vec![] branch
+        let nodes = parse_html("<!-- comment --><p>Hi</p>").unwrap();
+        assert_eq!(nodes.len(), 1);
+        match &nodes[0] {
+            DomNode::Element(el) => assert_eq!(el.tag, HtmlTag::P),
+            _ => panic!("Expected element"),
+        }
+    }
 }

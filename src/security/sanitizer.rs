@@ -232,4 +232,60 @@ mod tests {
         assert_eq!(check_nesting_depth("<a><b><c></c></b></a>"), 3);
         assert_eq!(check_nesting_depth("<p>Hello</p>"), 1);
     }
+
+    #[test]
+    fn rejects_excessive_nesting() {
+        let html = "<div>".repeat(101) + &"</div>".repeat(101);
+        let result = sanitize_html(&html);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("nesting depth"));
+    }
+
+    #[test]
+    fn removes_self_closing_embed() {
+        let result = sanitize_html(r#"<p>Hi</p><embed src="evil.swf" />"#).unwrap();
+        assert!(!result.contains("embed"));
+    }
+
+    #[test]
+    fn removes_unclosed_object_tag() {
+        let result = sanitize_html(r#"<p>Hi</p><object data="evil.swf"><p>inner</p>"#).unwrap();
+        assert!(!result.contains("object"));
+    }
+
+    #[test]
+    fn removes_unquoted_event_handler() {
+        let result = sanitize_html(r#"<p onclick=alert(1)>Hello</p>"#).unwrap();
+        assert!(!result.contains("onclick"));
+        assert!(result.contains("Hello"));
+    }
+
+    #[test]
+    fn removes_form_tag() {
+        let result = sanitize_html(r#"<form action="/submit"><input></form>"#).unwrap();
+        assert!(!result.contains("form"));
+    }
+
+    #[test]
+    fn removes_style_tag() {
+        let result = sanitize_html(r#"<style>body { color: red }</style><p>Hi</p>"#).unwrap();
+        assert!(!result.contains("style"));
+        assert!(result.contains("Hi"));
+    }
+
+    #[test]
+    fn unclosed_tag_no_gt() {
+        // Tag with no closing > — hits the break in the else branch
+        let result = sanitize_html("<p>Hi</p><embed src=x").unwrap();
+        // Should handle gracefully
+        assert!(result.contains("Hi"));
+    }
+
+    #[test]
+    fn event_handler_with_whitespace_before_value() {
+        let result = sanitize_html(r#"<div onmouseover = "alert(1)">Hi</div>"#).unwrap();
+        assert!(!result.contains("onmouseover"));
+        assert!(result.contains("Hi"));
+    }
 }

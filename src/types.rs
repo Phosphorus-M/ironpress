@@ -107,3 +107,41 @@ impl Default for Color {
         Self::BLACK
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn color_default_is_black() {
+        let c = Color::default();
+        assert_eq!(c.r, 0);
+        assert_eq!(c.g, 0);
+        assert_eq!(c.b, 0);
+        assert_eq!(c.a, 255);
+    }
+
+    #[test]
+    fn color_to_f32_rgb() {
+        let c = Color::rgb(255, 128, 0);
+        let (r, g, b) = c.to_f32_rgb();
+        assert!((r - 1.0).abs() < 0.01);
+        assert!((g - 0.502).abs() < 0.01);
+        assert!((b - 0.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn page_size_default_is_a4() {
+        let ps = PageSize::default();
+        assert!((ps.width - 595.28).abs() < 0.01);
+    }
+
+    #[test]
+    fn margin_uniform() {
+        let m = Margin::uniform(36.0);
+        assert_eq!(m.top, 36.0);
+        assert_eq!(m.right, 36.0);
+        assert_eq!(m.bottom, 36.0);
+        assert_eq!(m.left, 36.0);
+    }
+}

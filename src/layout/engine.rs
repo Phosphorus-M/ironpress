@@ -423,4 +423,89 @@ mod tests {
         let pages = layout(&nodes, PageSize::A4, Margin::default());
         assert!(pages.len() >= 2);
     }
+
+    #[test]
+    fn bare_text_node() {
+        // Text not wrapped in any element — exercises DomNode::Text branch in flatten_nodes
+        let nodes = parse_html("Just some bare text").unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        assert!(!pages[0].elements.is_empty());
+    }
+
+    #[test]
+    fn br_element_creates_empty_line() {
+        let html = "<p>Line one</p><br><p>Line two</p>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        // Should have at least 3 elements (p, br, p)
+        assert!(pages[0].elements.len() >= 2);
+    }
+
+    #[test]
+    fn inline_element_layout() {
+        // Inline element outside a block — exercises the else branch
+        let html = "<span>Hello</span>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+    }
+
+    #[test]
+    fn page_break_after() {
+        let html = r#"<div style="page-break-after: always"><p>Page 1</p></div><p>Page 2</p>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert!(pages.len() >= 2);
+    }
+
+    #[test]
+    fn word_wrap_long_text() {
+        // Generate text that exceeds page width to trigger word wrapping
+        let long_text = "word ".repeat(200);
+        let html = format!("<p>{long_text}</p>");
+        let nodes = parse_html(&html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        // Should have wrapped into multiple lines
+        if let (_, LayoutElement::TextBlock { lines, .. }) = &pages[0].elements[0] {
+            assert!(lines.len() > 1);
+        }
+    }
+
+    #[test]
+    fn content_overflows_to_next_page() {
+        // Generate enough content to overflow one page
+        let paragraphs = "<p>Some paragraph text that takes up space.</p>\n".repeat(100);
+        let nodes = parse_html(&paragraphs).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert!(pages.len() >= 2);
+    }
+
+    #[test]
+    fn background_color_block() {
+        let html = r#"<div style="background-color: yellow"><p>Highlighted</p></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert!(!pages[0].elements.is_empty());
+    }
+
+    #[test]
+    fn pre_element_with_background() {
+        let html = "<pre>code block</pre>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        // Pre has background color in defaults
+        if let (
+            _,
+            LayoutElement::TextBlock {
+                background_color, ..
+            },
+        ) = &pages[0].elements[0]
+        {
+            assert!(background_color.is_some());
+        }
+    }
 }

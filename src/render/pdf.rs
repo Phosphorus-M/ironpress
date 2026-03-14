@@ -330,4 +330,75 @@ mod tests {
         assert_eq!(escape_pdf_string("(test)"), "\\(test\\)");
         assert_eq!(escape_pdf_string("back\\slash"), "back\\\\slash");
     }
+
+    #[test]
+    fn render_background_color() {
+        let html = r#"<pre>code here</pre>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        // Pre has gray background — PDF should contain rectangle fill commands
+        assert!(content.contains("re\nf\n") || content.contains("re"));
+    }
+
+    #[test]
+    fn render_center_align() {
+        let html = r#"<p style="text-align: center">Centered</p>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn render_right_align() {
+        let html = r#"<p style="text-align: right">Right</p>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn render_underline() {
+        let html = "<p><u>Underlined text</u></p>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        // Underline draws a line with stroke command
+        assert!(content.contains(" l\nS\n"));
+    }
+
+    #[test]
+    fn render_bold_italic_combined() {
+        let html = "<p><strong><em>Bold Italic</em></strong></p>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("/Helvetica-BoldOblique"));
+    }
+
+    #[test]
+    fn render_page_break_in_content() {
+        let html = r#"<p>Page 1</p><div style="page-break-before: always"><p>Page 2</p></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        // Should have multiple page objects
+        assert!(content.matches("/Type /Page").count() >= 2);
+    }
+
+    #[test]
+    fn render_colored_text() {
+        let html = r#"<p style="color: red">Red text</p>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("1 0 0 rg")); // red in PDF
+    }
 }

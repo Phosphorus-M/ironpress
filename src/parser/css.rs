@@ -285,4 +285,100 @@ mod tests {
             other => panic!("Expected Keyword, got {:?}", other),
         }
     }
+
+    #[test]
+    fn parse_font_style() {
+        let style = parse_inline_style("font-style: italic");
+        match style.get("font-style") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "italic"),
+            other => panic!("Expected Keyword, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_pt_length() {
+        let style = parse_inline_style("font-size: 14pt");
+        match style.get("font-size") {
+            Some(CssValue::Length(v)) => assert!((v - 14.0).abs() < 0.1),
+            other => panic!("Expected Length, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_em_unit() {
+        let style = parse_inline_style("font-size: 1.5em");
+        match style.get("font-size") {
+            Some(CssValue::Number(v)) => assert!((v - 1.5).abs() < 0.01),
+            other => panic!("Expected Number for em, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_bare_number_length() {
+        let style = parse_inline_style("line-height: 1.6");
+        match style.get("line-height") {
+            Some(CssValue::Length(v)) => assert!((v - 1.6).abs() < 0.01),
+            other => panic!("Expected Length, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_invalid_length_returns_none() {
+        let style = parse_inline_style("font-size: abc");
+        assert!(style.get("font-size").is_none());
+    }
+
+    #[test]
+    fn parse_page_break() {
+        let style = parse_inline_style("page-break-before: always");
+        match style.get("page-break-before") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "always"),
+            other => panic!("Expected Keyword, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_text_decoration() {
+        let style = parse_inline_style("text-decoration: underline");
+        match style.get("text-decoration") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "underline"),
+            other => panic!("Expected Keyword, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn style_map_merge() {
+        let mut a = StyleMap::new();
+        a.set("font-size", CssValue::Length(12.0));
+        let mut b = StyleMap::new();
+        b.set("font-size", CssValue::Length(16.0));
+        b.set("color", CssValue::Keyword("red".into()));
+        a.merge(&b);
+        match a.get("font-size") {
+            Some(CssValue::Length(v)) => assert!((v - 16.0).abs() < 0.01),
+            other => panic!("Expected overridden length, got {:?}", other),
+        }
+        assert!(a.get("color").is_some());
+    }
+
+    #[test]
+    fn parse_invalid_hex_length() {
+        let style = parse_inline_style("color: #12345");
+        assert!(style.get("color").is_none());
+    }
+
+    #[test]
+    fn parse_rgb_invalid_parts() {
+        let style = parse_inline_style("color: rgb(1,2)");
+        assert!(style.get("color").is_none());
+    }
+
+    #[test]
+    fn parse_padding_shorthand() {
+        let style = parse_inline_style("padding: 8px");
+        assert!(style.get("padding-top").is_some());
+        assert!(style.get("padding-right").is_some());
+        assert!(style.get("padding-bottom").is_some());
+        assert!(style.get("padding-left").is_some());
+    }
 }

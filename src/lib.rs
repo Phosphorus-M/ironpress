@@ -211,6 +211,26 @@ mod tests {
     }
 
     #[test]
+    fn convert_file_roundtrip() {
+        let dir = std::env::temp_dir();
+        let input = dir.join("ironpress_test_input.html");
+        let output = dir.join("ironpress_test_output.pdf");
+        std::fs::write(&input, "<h1>Test</h1><p>Hello</p>").unwrap();
+        convert_file(input.to_str().unwrap(), output.to_str().unwrap()).unwrap();
+        let pdf = std::fs::read(&output).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+        std::fs::remove_file(&input).ok();
+        std::fs::remove_file(&output).ok();
+    }
+
+    #[test]
+    fn converter_default_impl() {
+        let converter = HtmlConverter::default();
+        let pdf = converter.convert("<p>Default</p>").unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
     fn html_to_pdf_full_document() {
         let html = r#"
             <html>
