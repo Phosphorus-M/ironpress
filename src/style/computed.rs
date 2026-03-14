@@ -2838,18 +2838,10 @@ mod tests {
     fn text_decoration_initial_resets_both_flags() {
         let parent = ComputedStyle::default();
         // First set text-decoration underline, then reset with initial
-        let style = compute_style(
-            HtmlTag::Span,
-            Some("text-decoration: underline"),
-            &parent,
-        );
+        let style = compute_style(HtmlTag::Span, Some("text-decoration: underline"), &parent);
         assert!(style.text_decoration_underline);
         // Now use initial to reset
-        let style2 = compute_style(
-            HtmlTag::Span,
-            Some("text-decoration: initial"),
-            &parent,
-        );
+        let style2 = compute_style(HtmlTag::Span, Some("text-decoration: initial"), &parent);
         assert!(!style2.text_decoration_underline);
         assert!(!style2.text_decoration_line_through);
     }
@@ -2880,7 +2872,9 @@ mod tests {
         let parent = ComputedStyle::default();
         let style = compute_style(
             HtmlTag::Div,
-            Some("padding-top: initial; padding-right: initial; padding-bottom: initial; padding-left: initial"),
+            Some(
+                "padding-top: initial; padding-right: initial; padding-bottom: initial; padding-left: initial",
+            ),
             &parent,
         );
         assert!((style.padding.top - 0.0).abs() < 0.1);
@@ -3076,11 +3070,7 @@ mod tests {
         let mut parent = ComputedStyle::default();
         parent.text_decoration_underline = true;
         parent.text_decoration_line_through = true;
-        let style = compute_style(
-            HtmlTag::Span,
-            Some("text-decoration: inherit"),
-            &parent,
-        );
+        let style = compute_style(HtmlTag::Span, Some("text-decoration: inherit"), &parent);
         assert!(style.text_decoration_underline);
         assert!(style.text_decoration_line_through);
     }
@@ -3113,11 +3103,7 @@ mod tests {
     fn background_color_inherit_from_parent() {
         let mut parent = ComputedStyle::default();
         parent.background_color = Some(Color::rgb(0, 128, 0));
-        let style = compute_style(
-            HtmlTag::Div,
-            Some("background-color: inherit"),
-            &parent,
-        );
+        let style = compute_style(HtmlTag::Div, Some("background-color: inherit"), &parent);
         assert_eq!(style.background_color.unwrap().g, 128);
     }
 
@@ -3130,7 +3116,9 @@ mod tests {
         parent.margin.left = 40.0;
         let style = compute_style(
             HtmlTag::Div,
-            Some("margin-top: inherit; margin-right: inherit; margin-bottom: inherit; margin-left: inherit"),
+            Some(
+                "margin-top: inherit; margin-right: inherit; margin-bottom: inherit; margin-left: inherit",
+            ),
             &parent,
         );
         assert!((style.margin.top - 10.0).abs() < 0.1);
@@ -3148,7 +3136,9 @@ mod tests {
         parent.padding.left = 8.0;
         let style = compute_style(
             HtmlTag::Div,
-            Some("padding-top: inherit; padding-right: inherit; padding-bottom: inherit; padding-left: inherit"),
+            Some(
+                "padding-top: inherit; padding-right: inherit; padding-bottom: inherit; padding-left: inherit",
+            ),
             &parent,
         );
         assert!((style.padding.top - 5.0).abs() < 0.1);
@@ -3305,11 +3295,7 @@ mod tests {
     fn justify_content_inherit_from_parent() {
         let mut parent = ComputedStyle::default();
         parent.justify_content = JustifyContent::Center;
-        let style = compute_style(
-            HtmlTag::Div,
-            Some("justify-content: inherit"),
-            &parent,
-        );
+        let style = compute_style(HtmlTag::Div, Some("justify-content: inherit"), &parent);
         assert_eq!(style.justify_content, JustifyContent::Center);
     }
 
@@ -3504,7 +3490,8 @@ mod tests {
     fn text_transform_uppercase() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("text-transform", "uppercase");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.text_transform, TextTransform::Uppercase);
     }
 
@@ -3512,7 +3499,8 @@ mod tests {
     fn text_transform_lowercase() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("text-transform", "lowercase");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.text_transform, TextTransform::Lowercase);
     }
 
@@ -3520,7 +3508,8 @@ mod tests {
     fn text_transform_capitalize() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("text-transform", "capitalize");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.text_transform, TextTransform::Capitalize);
     }
 
@@ -3528,7 +3517,8 @@ mod tests {
     fn text_transform_unknown_fallback() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("text-transform", "foobar");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.text_transform, TextTransform::None);
     }
 
@@ -3547,7 +3537,8 @@ mod tests {
     fn white_space_nowrap() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("white-space", "nowrap");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.white_space, WhiteSpace::NoWrap);
     }
 
@@ -3555,7 +3546,8 @@ mod tests {
     fn white_space_pre() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("white-space", "pre");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.white_space, WhiteSpace::Pre);
     }
 
@@ -3563,7 +3555,8 @@ mod tests {
     fn white_space_pre_wrap() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("white-space", "pre-wrap");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.white_space, WhiteSpace::PreWrap);
     }
 
@@ -3571,7 +3564,8 @@ mod tests {
     fn white_space_pre_line() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("white-space", "pre-line");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.white_space, WhiteSpace::PreLine);
     }
 
@@ -3579,7 +3573,8 @@ mod tests {
     fn white_space_unknown_fallback() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("white-space", "foobar");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.white_space, WhiteSpace::Normal);
     }
 
@@ -3607,7 +3602,8 @@ mod tests {
     fn vertical_align_super() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("vertical-align", "super");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.vertical_align, VerticalAlign::Super);
     }
 
@@ -3615,7 +3611,8 @@ mod tests {
     fn vertical_align_sub() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("vertical-align", "sub");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.vertical_align, VerticalAlign::Sub);
     }
 
@@ -3623,7 +3620,8 @@ mod tests {
     fn vertical_align_top() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("vertical-align", "top");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.vertical_align, VerticalAlign::Top);
     }
 
@@ -3631,7 +3629,8 @@ mod tests {
     fn vertical_align_middle() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("vertical-align", "middle");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.vertical_align, VerticalAlign::Middle);
     }
 
@@ -3639,7 +3638,8 @@ mod tests {
     fn vertical_align_bottom() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("vertical-align", "bottom");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.vertical_align, VerticalAlign::Bottom);
     }
 
@@ -3647,7 +3647,8 @@ mod tests {
     fn vertical_align_unknown_fallback() {
         let parent = ComputedStyle::default();
         let rule = make_keyword_rule("vertical-align", "foobar");
-        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
+        let style =
+            compute_style_with_rules(HtmlTag::Div, None, &parent, &[rule], "div", &[], None);
         assert_eq!(style.vertical_align, VerticalAlign::Baseline);
     }
 
@@ -3849,8 +3850,7 @@ mod tests {
     #[test]
     fn gradient_color_rgba() {
         let lg =
-            parse_linear_gradient("linear-gradient(to right, rgba(255, 0, 0, 0.5), blue)")
-                .unwrap();
+            parse_linear_gradient("linear-gradient(to right, rgba(255, 0, 0, 0.5), blue)").unwrap();
         assert_eq!(lg.stops.len(), 2);
         assert_eq!(lg.stops[0].color.r, 255);
     }
@@ -3908,11 +3908,7 @@ mod tests {
     #[test]
     fn justify_content_space_around() {
         let parent = ComputedStyle::default();
-        let style = compute_style(
-            HtmlTag::Div,
-            Some("justify-content: space-around"),
-            &parent,
-        );
+        let style = compute_style(HtmlTag::Div, Some("justify-content: space-around"), &parent);
         assert_eq!(style.justify_content, JustifyContent::SpaceAround);
     }
 

@@ -1601,7 +1601,8 @@ fn main() {
     #[test]
     fn pdf_box_shadow_renders_rect() {
         // Covers pdf.rs lines 184-213: box-shadow rendering
-        let html = r#"<p style="box-shadow: 5pt 5pt black; width: 100pt; padding: 10pt">ShadowBox</p>"#;
+        let html =
+            r#"<p style="box-shadow: 5pt 5pt black; width: 100pt; padding: 10pt">ShadowBox</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
         assert!(content.contains("f\n"));
@@ -1629,7 +1630,8 @@ fn main() {
     #[test]
     fn pdf_background_with_explicit_height() {
         // Covers pdf.rs line 220: background_color with block_height Some(h) path
-        let html = r#"<p style="background-color: #ff0000; width: 100pt; height: 80pt">BGHeight</p>"#;
+        let html =
+            r#"<p style="background-color: #ff0000; width: 100pt; height: 80pt">BGHeight</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
         assert!(content.contains("1 0 0 rg"));

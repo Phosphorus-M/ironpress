@@ -2589,10 +2589,7 @@ mod tests {
             ancestors: Vec::new(),
             child_index: 2,
             sibling_count: 3,
-            preceding_siblings: vec![
-                ("h1".to_string(), vec![]),
-                ("span".to_string(), vec![]),
-            ],
+            preceding_siblings: vec![("h1".to_string(), vec![]), ("span".to_string(), vec![])],
         };
         assert!(selector_matches_with_context(
             "h1 ~ p",

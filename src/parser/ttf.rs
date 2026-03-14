@@ -748,8 +748,7 @@ mod tests {
             buf.extend_from_slice(table_data);
             let dir_off = dir_start + i * 16;
             buf[dir_off..dir_off + 4].copy_from_slice(*tag);
-            buf[dir_off + 8..dir_off + 12]
-                .copy_from_slice(&(offset as u32).to_be_bytes());
+            buf[dir_off + 8..dir_off + 12].copy_from_slice(&(offset as u32).to_be_bytes());
             buf[dir_off + 12..dir_off + 16]
                 .copy_from_slice(&(table_data.len() as u32).to_be_bytes());
         }
@@ -828,11 +827,7 @@ mod tests {
     }
 
     /// Build a cmap with format 4 that uses idRangeOffset (non-zero).
-    fn make_cmap_format4_with_range_offset(
-        start: u16,
-        end: u16,
-        glyph_ids: &[u16],
-    ) -> Vec<u8> {
+    fn make_cmap_format4_with_range_offset(start: u16, end: u16, glyph_ids: &[u16]) -> Vec<u8> {
         let mut t = Vec::new();
         // cmap header
         t.extend_from_slice(&0u16.to_be_bytes()); // version
@@ -895,7 +890,12 @@ mod tests {
         t
     }
 
-    fn make_name_table_utf16be(name_id: u16, platform_id: u16, encoding_id: u16, name: &str) -> Vec<u8> {
+    fn make_name_table_utf16be(
+        name_id: u16,
+        platform_id: u16,
+        encoding_id: u16,
+        name: &str,
+    ) -> Vec<u8> {
         let mut t = Vec::new();
         t.extend_from_slice(&0u16.to_be_bytes()); // format
         t.extend_from_slice(&1u16.to_be_bytes()); // count
@@ -906,10 +906,7 @@ mod tests {
         t.extend_from_slice(&encoding_id.to_be_bytes());
         t.extend_from_slice(&0u16.to_be_bytes()); // language
         t.extend_from_slice(&name_id.to_be_bytes());
-        let name_bytes: Vec<u8> = name
-            .encode_utf16()
-            .flat_map(|c| c.to_be_bytes())
-            .collect();
+        let name_bytes: Vec<u8> = name.encode_utf16().flat_map(|c| c.to_be_bytes()).collect();
         t.extend_from_slice(&(name_bytes.len() as u16).to_be_bytes());
         t.extend_from_slice(&0u16.to_be_bytes()); // offset
         t.extend_from_slice(&name_bytes);
@@ -960,10 +957,7 @@ mod tests {
     fn parse_ttf_hhea_too_short() {
         // Line 111
         let head = make_head_table(1000);
-        let data = build_ttf_with_tables(&[
-            (b"head", &head),
-            (b"hhea", &[0u8; 10]),
-        ]);
+        let data = build_ttf_with_tables(&[(b"head", &head), (b"hhea", &[0u8; 10])]);
         let err = parse_ttf(data).unwrap_err();
         assert!(err.contains("hhea table too short"));
     }
@@ -1012,11 +1006,8 @@ mod tests {
         // Line 135
         let head = make_head_table(1000);
         let hhea = make_hhea_table(800, -200, 1);
-        let data = build_ttf_with_tables(&[
-            (b"head", &head),
-            (b"hhea", &hhea),
-            (b"maxp", &[0u8; 2]),
-        ]);
+        let data =
+            build_ttf_with_tables(&[(b"head", &head), (b"hhea", &hhea), (b"maxp", &[0u8; 2])]);
         let err = parse_ttf(data).unwrap_err();
         assert!(err.contains("maxp table too short"));
     }
@@ -1165,14 +1156,22 @@ mod tests {
         data[13] = 0; // format 0
         // data is only 100 bytes, need offset+262 = 274
         let result = parse_cmap(&data, 0);
-        assert!(result.unwrap_err().contains("cmap format 0 table too short"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("cmap format 0 table too short")
+        );
     }
 
     #[test]
     fn parse_cmap_format4_header_too_short() {
         // Line 245
         let result = parse_cmap_format4(&[0u8; 10], 0);
-        assert!(result.unwrap_err().contains("cmap format 4 header too short"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("cmap format 4 header too short")
+        );
     }
 
     #[test]
@@ -1198,8 +1197,8 @@ mod tests {
         let hhea = make_hhea_table(800, -200, 21);
         let maxp = make_maxp_table(21);
         let hmtx = make_hmtx_table(&[
-            500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500,
-            500, 500, 500, 500, 500, 500, 500, 500,
+            500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500,
+            500, 500, 500, 500,
         ]);
         let name = make_name_table_ascii(1, b"Test");
         let data = build_full_ttf(&head, &hhea, &maxp, &hmtx, &cmap_data, &name, None);
