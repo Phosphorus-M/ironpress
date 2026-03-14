@@ -9,9 +9,10 @@ Pure Rust HTML/CSS/Markdown to PDF converter. No browser, no system dependencies
 
 <p align="center">
   <a href="https://codecov.io/gh/gastongouron/ironpress">
-    <img src="https://codecov.io/gh/gastongouron/ironpress/graphs/tree.svg?token=w36XIAwRxG" alt="Coverage grid">
+    <img src="https://codecov.io/gh/gastongouron/ironpress/graphs/sunburst.svg?token=w36XIAwRxG" alt="Coverage grid">
   </a>
 </p>
+
 
 Other Rust PDF crates shell out to headless Chrome or wkhtmltopdf. ironpress does it natively with a built-in layout engine. No C libraries, no binaries to install, just `cargo add ironpress`.
 

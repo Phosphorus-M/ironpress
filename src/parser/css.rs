@@ -88,6 +88,12 @@ fn parse_value(property: &str, val: &str) -> Option<CssValue> {
         return Some(CssValue::Keyword(val.to_string()));
     }
 
+    // Font-family — store the first font name (before any comma fallback list)
+    if property == "font-family" {
+        let first = val.split(',').next().unwrap_or(val).trim();
+        return Some(CssValue::Keyword(first.to_string()));
+    }
+
     // Text-align, text-decoration, display
     if property == "text-align" || property == "text-decoration" || property == "display" {
         return Some(CssValue::Keyword(val.to_string()));
@@ -96,6 +102,17 @@ fn parse_value(property: &str, val: &str) -> Option<CssValue> {
     // Page break
     if property.starts_with("page-break") {
         return Some(CssValue::Keyword(val.to_string()));
+    }
+
+    // Border shorthand and individual border properties
+    if property == "border" || property == "border-style" {
+        return Some(CssValue::Keyword(val.to_string()));
+    }
+    if property == "border-width" {
+        return parse_length(val);
+    }
+    if property == "border-color" {
+        return parse_color(val);
     }
 
     // Length values (font-size, margin, padding, width, height, etc.)
@@ -515,5 +532,125 @@ mod tests {
         assert!(style.get("padding-right").is_some());
         assert!(style.get("padding-bottom").is_some());
         assert!(style.get("padding-left").is_some());
+    }
+
+    #[test]
+    fn parse_color_unknown_returns_none() {
+        // Line 156: unknown color name with no hex/rgb prefix returns None
+        let style = parse_inline_style("color: nonexistentcolor");
+        assert!(style.get("color").is_none());
+    }
+
+    #[test]
+    fn parse_stylesheet_empty_selector_skipped() {
+        // Line 213: empty selector after split is skipped
+        let rules = parse_stylesheet("{ color: red }");
+        assert_eq!(rules.len(), 0);
+    }
+
+    #[test]
+    fn parse_stylesheet_empty_declarations_skipped() {
+        // A rule with an empty declarations block is skipped
+        let rules = parse_stylesheet("p { }");
+        assert_eq!(rules.len(), 0);
+    }
+
+    #[test]
+    fn parse_display_property() {
+        let style = parse_inline_style("display: none");
+        match style.get("display") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "none"),
+            other => panic!("Expected Keyword, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_color_rgb_function() {
+        // Exercises the rgb() branch in parse_color (line 153-154)
+        let style = parse_inline_style("color: rgb(10, 20, 30)");
+        match style.get("color") {
+            Some(CssValue::Color(c)) => {
+                assert_eq!(c.r, 10);
+                assert_eq!(c.g, 20);
+                assert_eq!(c.b, 30);
+            }
+            other => panic!("Expected Color, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_border_shorthand() {
+        let style = parse_inline_style("border: 1px solid black");
+        match style.get("border") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "1px solid black"),
+            other => panic!("Expected Keyword for border, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_border_width_property() {
+        let style = parse_inline_style("border-width: 2pt");
+        match style.get("border-width") {
+            Some(CssValue::Length(v)) => assert!((v - 2.0).abs() < 0.1),
+            other => panic!("Expected Length for border-width, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_border_color_property() {
+        let style = parse_inline_style("border-color: red");
+        match style.get("border-color") {
+            Some(CssValue::Color(c)) => {
+                assert_eq!(c.r, 255);
+                assert_eq!(c.g, 0);
+                assert_eq!(c.b, 0);
+            }
+            other => panic!("Expected Color for border-color, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_border_style_property() {
+        let style = parse_inline_style("border-style: dashed");
+        match style.get("border-style") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "dashed"),
+            other => panic!("Expected Keyword for border-style, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_font_family_serif() {
+        let style = parse_inline_style("font-family: serif");
+        match style.get("font-family") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "serif"),
+            other => panic!("Expected Keyword, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_font_family_monospace() {
+        let style = parse_inline_style("font-family: monospace");
+        match style.get("font-family") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "monospace"),
+            other => panic!("Expected Keyword, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_font_family_with_fallback() {
+        let style = parse_inline_style("font-family: 'Times New Roman', serif");
+        match style.get("font-family") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "'Times New Roman'"),
+            other => panic!("Expected Keyword with first font name, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_font_family_courier_new() {
+        let style = parse_inline_style("font-family: 'Courier New'");
+        match style.get("font-family") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "'Courier New'"),
+            other => panic!("Expected Keyword, got {:?}", other),
+        }
     }
 }

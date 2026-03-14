@@ -63,7 +63,7 @@ pub fn html_to_pdf(html: &str) -> Result<Vec<u8>, IronpressError> {
 /// ```
 pub fn markdown_to_pdf(md: &str) -> Result<Vec<u8>, IronpressError> {
     let html = parser::markdown::markdown_to_html(md);
-    HtmlConverter::new().sanitize(false).convert(&html)
+    HtmlConverter::new().convert(&html)
 }
 
 /// Convert a Markdown file to a PDF file using default settings.
@@ -271,6 +271,38 @@ mod tests {
     }
 
     #[test]
+    fn markdown_to_pdf_roundtrip() {
+        // Exercises markdown_to_pdf() (line 64-67)
+        let pdf = markdown_to_pdf("# Test\n\nHello **world**").unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Test"));
+        assert!(content.contains("world"));
+    }
+
+    #[test]
+    fn convert_markdown_file_roundtrip() {
+        // Exercises convert_markdown_file() (lines 76-80)
+        let dir = std::env::temp_dir();
+        let input = dir.join("ironpress_test_md_input.md");
+        let output = dir.join("ironpress_test_md_output.pdf");
+        std::fs::write(&input, "# Hello\n\nWorld").unwrap();
+        convert_markdown_file(input.to_str().unwrap(), output.to_str().unwrap()).unwrap();
+        let pdf = std::fs::read(&output).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Hello"));
+        std::fs::remove_file(&input).ok();
+        std::fs::remove_file(&output).ok();
+    }
+
+    #[test]
+    fn convert_markdown_file_missing_input() {
+        let result = convert_markdown_file("/nonexistent/file.md", "/tmp/out.pdf");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn html_to_pdf_unordered_list() {
         let html = "<ul><li>Item one</li><li>Item two</li><li>Item three</li></ul>";
         let pdf = html_to_pdf(html).unwrap();
@@ -453,5 +485,84 @@ fn main() {
         let content = String::from_utf8_lossy(&pdf);
         assert!(content.contains("Document"));
         assert!(content.contains("Title"));
+    }
+
+    #[test]
+    fn html_to_pdf_strikethrough() {
+        let html = "<p><del>deleted</del> and <s>struck</s></p>";
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("deleted"));
+        assert!(content.contains("struck"));
+    }
+
+    #[test]
+    fn html_to_pdf_page_break() {
+        let html = r#"<p style="page-break-after: always">Page one</p><p>Page two</p>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_border() {
+        let html = r#"<div style="border: 2px solid blue">Bordered content</div>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Bordered"));
+    }
+
+    #[test]
+    fn html_to_pdf_font_families() {
+        let html = r#"
+            <p style="font-family: serif">Serif text</p>
+            <p style="font-family: monospace">Mono text</p>
+        "#;
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Times-Roman"));
+        assert!(content.contains("Courier"));
+    }
+
+    #[test]
+    fn html_to_pdf_table_colspan() {
+        let html = r#"
+            <table>
+                <tr><td colspan="2">Wide</td></tr>
+                <tr><td>A</td><td>B</td></tr>
+            </table>
+        "#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Wide"));
+    }
+
+    #[test]
+    fn html_to_pdf_style_border_color_and_width() {
+        let html = r#"
+            <html>
+            <head><style>div { border-width: 2pt; border-color: red }</style></head>
+            <body><div>Bordered</div></body>
+            </html>
+        "#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn sanitizer_malformed_style_tag() {
+        // Style tag without closing tag
+        let html = "<style>p { color: red }";
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn sanitizer_event_handler_with_spaces() {
+        let html = r#"<p onclick = "alert('xss')">Safe text</p>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(!content.contains("alert"));
+        assert!(content.contains("Safe"));
     }
 }
