@@ -436,7 +436,7 @@ impl Default for ComputedStyle {
             text_align: TextAlign::Left,
             text_decoration_underline: false,
             text_decoration_line_through: false,
-            line_height: 1.4,
+            line_height: 1.2,
             page_break_before: false,
             page_break_after: false,
             border: BorderSides::default(),

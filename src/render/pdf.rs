@@ -660,7 +660,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         }
 
                         // Render cell text at the first row's y position
-                        render_cell_text(&mut content, cell, cell_x, row_y, cell_w, custom_fonts);
+                        render_cell_text(&mut content, cell, cell_x, row_y, cell_w, row_height, custom_fonts);
 
                         col_pos += cell.colspan;
                     }
@@ -691,7 +691,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         }
 
                         // Render cell text
-                        render_cell_text(&mut content, cell, cell_x, row_y, cell_w, custom_fonts);
+                        render_cell_text(&mut content, cell, cell_x, row_y, cell_w, row_height, custom_fonts);
 
                         cell_x += cell_w;
                         // Add gap between columns
@@ -953,18 +953,25 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             // Calculate line width for text-align
                             let line_width: f32 = merged
                                 .iter()
-                                .map(|r| estimate_run_width_with_fonts(r, custom_fonts))
+                                .map(|r| {
+                                    let w = estimate_run_width_with_fonts(r, custom_fonts);
+                                    w + r.padding.0 * 2.0
+                                })
                                 .sum();
+                            let first_pad =
+                                line.runs.first().map_or(0.0, |r| r.padding.0);
                             let text_x = match cell.text_align {
                                 TextAlign::Right => {
                                     cell_x
                                         + cell.padding_left
                                         + (cell_inner_w - line_width).max(0.0)
+                                        + first_pad
                                 }
                                 TextAlign::Center => {
                                     cell_x
                                         + cell.padding_left
                                         + ((cell_inner_w - line_width) / 2.0).max(0.0)
+                                        + first_pad
                                 }
                                 _ => cell_x + cell.padding_left,
                             };
@@ -1112,10 +1119,16 @@ fn render_cell_text(
     cell_x: f32,
     row_y: f32,
     col_width: f32,
+    row_height: f32,
     custom_fonts: &HashMap<String, TtfFont>,
 ) {
     let cell_inner_w = col_width - cell.padding_left - cell.padding_right;
-    let mut text_y = row_y - cell.padding_top;
+    // Vertical centering: offset text so it's centered within the row height
+    // (matches browser default vertical-align: middle for table cells).
+    let text_h: f32 = cell.lines.iter().map(|l| l.height).sum();
+    let cell_content_h = cell.padding_top + text_h + cell.padding_bottom;
+    let v_offset = ((row_height - cell_content_h) / 2.0).max(0.0);
+    let mut text_y = row_y - cell.padding_top - v_offset;
     for line in &cell.lines {
         text_y -= line.height;
         let text_content: String = line.runs.iter().map(|r| r.text.as_str()).collect();
@@ -2995,7 +3008,7 @@ mod tests {
         };
         let mut content = String::new();
         let fonts = HashMap::new();
-        render_cell_text(&mut content, &cell, 0.0, 100.0, 50.0, &fonts);
+        render_cell_text(&mut content, &cell, 0.0, 100.0, 50.0, 20.0, &fonts);
         assert!(content.contains("Hello"));
     }
 

@@ -1425,9 +1425,12 @@ fn flatten_flex_container(
 
     // For percentage width resolution, children need the actual container width
     // as the parent reference (not the CSS width which may be None).
+    // Subtract total gap space so that percentage widths + gaps fit within the container.
+    let total_gaps = style.gap * (child_count.saturating_sub(1)) as f32;
+    let width_for_percentages = (inner_width - total_gaps).max(0.0);
     let mut parent_for_children = style.clone();
     if parent_for_children.width.is_none() {
-        parent_for_children.width = Some(inner_width);
+        parent_for_children.width = Some(width_for_percentages);
     }
 
     for (idx, child_el) in child_elements.iter().enumerate() {
@@ -1456,8 +1459,8 @@ fn flatten_flex_container(
 
         // Determine child width
         let child_w = child_style.width.unwrap_or_else(|| {
-            // Distribute remaining space equally among items without explicit width
-            inner_width / child_count as f32
+            // Distribute remaining space (minus gaps) equally among items without explicit width
+            width_for_percentages / child_count as f32
         });
 
         let child_inner_w = if child_style.box_sizing == BoxSizing::BorderBox {
@@ -1762,7 +1765,22 @@ fn flatten_flex_container(
                 } else {
                     0.0
                 };
-                let free_space = inner_width - total_item_width - total_gap;
+                let mut free_space = (inner_width - total_item_width - total_gap).max(0.0);
+
+                // Implicit flex-grow: when the remaining free space is small
+                // (< 5% of container), distribute it among items to fill the
+                // container exactly.  This matches browser behavior where
+                // percentage widths like 33%×3 fill the row despite rounding.
+                if free_space > 0.0
+                    && free_space < inner_width * 0.05
+                    && line_item_count > 0
+                {
+                    let grow_each = free_space / line_item_count as f32;
+                    for &i in &line_items {
+                        items[i].width += grow_each;
+                    }
+                    free_space = 0.0;
+                }
 
                 // Calculate starting x and spacing based on justify-content
                 let (mut x, extra_gap) = match justify {
