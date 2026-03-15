@@ -36,18 +36,43 @@ pub struct LayoutBorder {
 impl LayoutBorder {
     pub fn from_computed(b: &BorderSides) -> Self {
         Self {
-            top: LayoutBorderSide { width: b.top.width, color: b.top.color.map_or((0.0, 0.0, 0.0), |c| c.to_f32_rgb()) },
-            right: LayoutBorderSide { width: b.right.width, color: b.right.color.map_or((0.0, 0.0, 0.0), |c| c.to_f32_rgb()) },
-            bottom: LayoutBorderSide { width: b.bottom.width, color: b.bottom.color.map_or((0.0, 0.0, 0.0), |c| c.to_f32_rgb()) },
-            left: LayoutBorderSide { width: b.left.width, color: b.left.color.map_or((0.0, 0.0, 0.0), |c| c.to_f32_rgb()) },
+            top: LayoutBorderSide {
+                width: b.top.width,
+                color: b.top.color.map_or((0.0, 0.0, 0.0), |c| c.to_f32_rgb()),
+            },
+            right: LayoutBorderSide {
+                width: b.right.width,
+                color: b.right.color.map_or((0.0, 0.0, 0.0), |c| c.to_f32_rgb()),
+            },
+            bottom: LayoutBorderSide {
+                width: b.bottom.width,
+                color: b.bottom.color.map_or((0.0, 0.0, 0.0), |c| c.to_f32_rgb()),
+            },
+            left: LayoutBorderSide {
+                width: b.left.width,
+                color: b.left.color.map_or((0.0, 0.0, 0.0), |c| c.to_f32_rgb()),
+            },
         }
     }
     pub fn has_any(&self) -> bool {
-        self.top.width > 0.0 || self.right.width > 0.0 || self.bottom.width > 0.0 || self.left.width > 0.0
+        self.top.width > 0.0
+            || self.right.width > 0.0
+            || self.bottom.width > 0.0
+            || self.left.width > 0.0
     }
-    pub fn horizontal_width(&self) -> f32 { self.left.width + self.right.width }
-    pub fn vertical_width(&self) -> f32 { self.top.width + self.bottom.width }
-    pub fn max_width(&self) -> f32 { self.top.width.max(self.right.width).max(self.bottom.width).max(self.left.width) }
+    pub fn horizontal_width(&self) -> f32 {
+        self.left.width + self.right.width
+    }
+    pub fn vertical_width(&self) -> f32 {
+        self.top.width + self.bottom.width
+    }
+    pub fn max_width(&self) -> f32 {
+        self.top
+            .width
+            .max(self.right.width)
+            .max(self.bottom.width)
+            .max(self.left.width)
+    }
 }
 
 /// Counter state for CSS counters.
@@ -1172,10 +1197,7 @@ fn flatten_element(
                 }
             }
             // Measure children total height
-            let children_h: f32 = child_elements
-                .iter()
-                .map(estimate_element_height)
-                .sum();
+            let children_h: f32 = child_elements.iter().map(estimate_element_height).sum();
             let container_h = style.padding.top + children_h + style.padding.bottom;
             let container_h = effective_height.map_or(container_h, |h| container_h.max(h));
 
@@ -1760,10 +1782,7 @@ fn flatten_flex_container(
                 // (< 5% of container), distribute it among items to fill the
                 // container exactly.  This matches browser behavior where
                 // percentage widths like 33%×3 fill the row despite rounding.
-                if free_space > 0.0
-                    && free_space < inner_width * 0.05
-                    && line_item_count > 0
-                {
+                if free_space > 0.0 && free_space < inner_width * 0.05 && line_item_count > 0 {
                     let grow_each = free_space / line_item_count as f32;
                     for &i in &line_items {
                         items[i].width += grow_each;
@@ -2142,7 +2161,14 @@ fn flatten_grid_container(
                 (cell_width - child_style.padding.left - child_style.padding.right).max(1.0);
 
             let mut runs = Vec::new();
-            collect_text_runs(&child_el.children, &child_style, &mut runs, None, rules, &child_ancestors);
+            collect_text_runs(
+                &child_el.children,
+                &child_style,
+                &mut runs,
+                None,
+                rules,
+                &child_ancestors,
+            );
             let lines = wrap_text_runs(runs, cell_inner, child_style.font_size, fonts);
 
             let bg = child_style
@@ -2336,7 +2362,14 @@ fn flatten_table(
                         &cell_sizing_ctx,
                     );
                     let mut runs = Vec::new();
-                    collect_text_runs(&cell_el.children, &cell_style, &mut runs, None, rules, &cell_sizing_ctx.ancestors);
+                    collect_text_runs(
+                        &cell_el.children,
+                        &cell_style,
+                        &mut runs,
+                        None,
+                        rules,
+                        &cell_sizing_ctx.ancestors,
+                    );
                     // Estimate content width using estimate_word_width for accurate
                     // measurement. Use the maximum of (full text width, longest word
                     // width) to avoid hyphenation of short columns like "Unit Price".
@@ -2538,7 +2571,14 @@ fn flatten_table(
             let cell_inner = effective_width - cell_style.padding.left - cell_style.padding.right;
 
             let mut runs = Vec::new();
-            collect_text_runs(&cell_el.children, &cell_style, &mut runs, None, rules, &cell_selector_ctx.ancestors);
+            collect_text_runs(
+                &cell_el.children,
+                &cell_style,
+                &mut runs,
+                None,
+                rules,
+                &cell_selector_ctx.ancestors,
+            );
             let lines = wrap_text_runs(runs, cell_inner.max(1.0), cell_style.font_size, fonts);
 
             let bg = cell_style
@@ -2797,7 +2837,15 @@ fn collect_text_runs_inner(
                         } else {
                             link_url
                         };
-                        collect_text_runs_inner(&el.children, &style, runs, url, rules, true, ancestors);
+                        collect_text_runs_inner(
+                            &el.children,
+                            &style,
+                            runs,
+                            url,
+                            rules,
+                            true,
+                            ancestors,
+                        );
                     }
                 }
             }
@@ -3072,7 +3120,14 @@ fn estimate_element_height(element: &LayoutElement) -> f32 {
             padding_bottom,
             border,
             ..
-        } => margin_top + padding_top + row_height + padding_bottom + margin_bottom + border.vertical_width(),
+        } => {
+            margin_top
+                + padding_top
+                + row_height
+                + padding_bottom
+                + margin_bottom
+                + border.vertical_width()
+        }
         LayoutElement::TableRow {
             cells,
             margin_top,
@@ -3088,12 +3143,16 @@ fn estimate_element_height(element: &LayoutElement) -> f32 {
                 .fold(0.0f32, f32::max);
             margin_top + row_h + margin_bottom
         }
-        LayoutElement::Image { height, margin_top, margin_bottom, .. } => {
-            margin_top + height + margin_bottom
-        }
-        LayoutElement::HorizontalRule { margin_top, margin_bottom } => {
-            margin_top + 1.0 + margin_bottom
-        }
+        LayoutElement::Image {
+            height,
+            margin_top,
+            margin_bottom,
+            ..
+        } => margin_top + height + margin_bottom,
+        LayoutElement::HorizontalRule {
+            margin_top,
+            margin_bottom,
+        } => margin_top + 1.0 + margin_bottom,
         _ => 0.0,
     }
 }
@@ -6500,7 +6559,13 @@ mod tests {
         let nodes = parse_html(html).unwrap();
         let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
         let has_bg = pages[0].elements.iter().any(|(_, el)| {
-            matches!(el, LayoutElement::TextBlock { background_color: Some(_), .. })
+            matches!(
+                el,
+                LayoutElement::TextBlock {
+                    background_color: Some(_),
+                    ..
+                }
+            )
         });
         assert!(
             has_bg,
@@ -6517,7 +6582,10 @@ mod tests {
         let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
         let items = extract_flex_items(&pages);
         let big_item = items.iter().find(|i| i.3.contains("big"));
-        assert!(big_item.is_some(), "Did not find 'big' text in flex layout output");
+        assert!(
+            big_item.is_some(),
+            "Did not find 'big' text in flex layout output"
+        );
         // Verify the font size was applied via ancestor selector
         // Check via the layout elements directly for font_size
         let mut found = false;
@@ -6608,6 +6676,312 @@ mod tests {
             "Expected at least 4 table rows, got {}",
             table_rows.len()
         );
+    }
+
+    #[test]
+    fn layout_border_horizontal_width() {
+        let border = LayoutBorder {
+            top: LayoutBorderSide {
+                width: 1.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            right: LayoutBorderSide {
+                width: 3.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            bottom: LayoutBorderSide {
+                width: 2.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            left: LayoutBorderSide {
+                width: 5.0,
+                color: (0.0, 0.0, 0.0),
+            },
+        };
+        assert!((border.horizontal_width() - 8.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn layout_border_vertical_width() {
+        let border = LayoutBorder {
+            top: LayoutBorderSide {
+                width: 4.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            right: LayoutBorderSide {
+                width: 1.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            bottom: LayoutBorderSide {
+                width: 6.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            left: LayoutBorderSide {
+                width: 1.0,
+                color: (0.0, 0.0, 0.0),
+            },
+        };
+        assert!((border.vertical_width() - 10.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn layout_border_max_width() {
+        let border = LayoutBorder {
+            top: LayoutBorderSide {
+                width: 2.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            right: LayoutBorderSide {
+                width: 7.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            bottom: LayoutBorderSide {
+                width: 3.0,
+                color: (0.0, 0.0, 0.0),
+            },
+            left: LayoutBorderSide {
+                width: 5.0,
+                color: (0.0, 0.0, 0.0),
+            },
+        };
+        assert!((border.max_width() - 7.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn flex_column_layout() {
+        let html = r#"<div style="display: flex; flex-direction: column">
+            <div>First</div>
+            <div>Second</div>
+            <div>Third</div>
+        </div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        let text_blocks: Vec<_> = pages[0]
+            .elements
+            .iter()
+            .filter(|(_, el)| matches!(el, LayoutElement::TextBlock { .. }))
+            .collect();
+        assert!(
+            text_blocks.len() >= 3,
+            "Expected at least 3 text blocks for column flex children, got {}",
+            text_blocks.len()
+        );
+    }
+
+    #[test]
+    fn flex_column_with_background() {
+        let html = r#"<div style="display: flex; flex-direction: column; background-color: #eee">
+            <p>Child A</p>
+            <p>Child B</p>
+        </div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        let has_bg = pages[0].elements.iter().any(|(_, el)| {
+            matches!(
+                el,
+                LayoutElement::TextBlock {
+                    background_color: Some(_),
+                    ..
+                }
+            )
+        });
+        assert!(
+            has_bg,
+            "Expected a wrapper TextBlock with background_color for flex column container"
+        );
+    }
+
+    #[test]
+    fn table_rowspan_layout() {
+        let html = r#"
+            <table>
+                <tr><td rowspan="2">Spanning</td><td>A</td></tr>
+                <tr><td>B</td></tr>
+                <tr><td>C</td><td>D</td></tr>
+            </table>
+        "#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        let table_rows: Vec<_> = pages[0]
+            .elements
+            .iter()
+            .filter(|(_, el)| matches!(el, LayoutElement::TableRow { .. }))
+            .collect();
+        assert!(
+            table_rows.len() >= 2,
+            "Expected at least 2 table rows with rowspan, got {}",
+            table_rows.len()
+        );
+    }
+
+    #[test]
+    fn inline_span_inherits_border_radius() {
+        let css = "span.badge { background-color: green; border-radius: 5pt; padding: 2pt; }";
+        let rules = parse_stylesheet(css);
+        let html = r#"<p><span class="badge">Tag</span></p>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        let mut found_br = false;
+        for (_, el) in &pages[0].elements {
+            if let LayoutElement::TextBlock { lines, .. } = el {
+                for line in lines {
+                    for run in &line.runs {
+                        if run.text.contains("Tag") && run.border_radius > 0.0 {
+                            found_br = true;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            found_br,
+            "Expected TextRun for 'Tag' to have border_radius > 0 from stylesheet"
+        );
+    }
+
+    #[test]
+    fn grid_layout_produces_rows() {
+        let css = ".grid { display: grid; grid-template-columns: 1fr 1fr; }";
+        let rules = parse_stylesheet(css);
+        let html = r#"<div class="grid"><div>A</div><div>B</div><div>C</div><div>D</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        let grid_rows: Vec<_> = pages[0]
+            .elements
+            .iter()
+            .filter(|(_, el)| matches!(el, LayoutElement::GridRow { .. }))
+            .collect();
+        assert!(
+            !grid_rows.is_empty(),
+            "Expected GridRow elements from display: grid layout"
+        );
+    }
+
+    #[test]
+    fn page_break_produces_multiple_pages() {
+        let html = r#"
+            <p>Page one content</p>
+            <div style="page-break-before: always">
+                <p>Page two content</p>
+            </div>
+            <div style="page-break-before: always">
+                <p>Page three content</p>
+            </div>
+        "#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert!(
+            pages.len() >= 3,
+            "Expected at least 3 pages from two page-break-before: always, got {}",
+            pages.len()
+        );
+    }
+
+    #[test]
+    fn image_element_in_layout() {
+        let html = r#"<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" style="width: 50px; height: 50px">"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        let has_image = pages[0]
+            .elements
+            .iter()
+            .any(|(_, el)| matches!(el, LayoutElement::Image { .. }));
+        assert!(has_image, "Expected an Image layout element from img tag");
+    }
+
+    #[test]
+    fn wrapper_textblock_with_border() {
+        let css = ".bordered { border: 2pt solid black; }";
+        let rules = parse_stylesheet(css);
+        let html = r#"<div class="bordered"><p>inside</p></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        let has_border = pages[0].elements.iter().any(|(_, el)| {
+            if let LayoutElement::TextBlock { border, .. } = el {
+                border.has_any()
+            } else {
+                false
+            }
+        });
+        assert!(
+            has_border,
+            "Expected a wrapper TextBlock with border from .bordered div"
+        );
+    }
+
+    #[test]
+    fn wrapper_textblock_with_box_shadow() {
+        let css = ".shadow { box-shadow: 2pt 2pt 4pt #000; }";
+        let rules = parse_stylesheet(css);
+        let html = r#"<div class="shadow"><p>shadowed</p></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        let has_shadow = pages[0].elements.iter().any(|(_, el)| {
+            matches!(
+                el,
+                LayoutElement::TextBlock {
+                    box_shadow: Some(_),
+                    ..
+                }
+            )
+        });
+        assert!(
+            has_shadow,
+            "Expected a wrapper TextBlock with box_shadow from .shadow div"
+        );
+    }
+
+    #[test]
+    fn flex_column_child_positioning() {
+        let html = r#"<div style="display: flex; flex-direction: column">
+            <div>Alpha</div>
+            <div>Beta</div>
+        </div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let text_blocks: Vec<_> = pages[0]
+            .elements
+            .iter()
+            .filter(|(_, el)| {
+                if let LayoutElement::TextBlock { lines, .. } = el {
+                    !lines.is_empty()
+                } else {
+                    false
+                }
+            })
+            .collect();
+        if text_blocks.len() >= 2 {
+            assert!(
+                text_blocks[1].0 >= text_blocks[0].0,
+                "Expected second flex column child to be at or below first child"
+            );
+        }
+    }
+
+    #[test]
+    fn grid_row_alignment_in_paginate() {
+        let css = ".g { display: grid; grid-template-columns: 1fr 1fr 1fr; }";
+        let rules = parse_stylesheet(css);
+        let html = r#"<div class="g"><div>X</div><div>Y</div><div>Z</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        assert_eq!(pages.len(), 1);
+        let grid_rows: Vec<_> = pages[0]
+            .elements
+            .iter()
+            .filter(|(_, el)| matches!(el, LayoutElement::GridRow { .. }))
+            .collect();
+        assert!(
+            !grid_rows.is_empty(),
+            "Expected GridRow elements from grid layout"
+        );
+        for (y, _) in &grid_rows {
+            assert!(*y >= 0.0, "Grid row y position should be non-negative");
+        }
     }
 }
 

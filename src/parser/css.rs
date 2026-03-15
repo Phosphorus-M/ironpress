@@ -243,8 +243,10 @@ fn parse_value(property: &str, val: &str) -> Option<CssValue> {
     if property == "border" || property == "border-style" {
         return Some(CssValue::Keyword(val.to_string()));
     }
-    if property == "border-top" || property == "border-right"
-        || property == "border-bottom" || property == "border-left"
+    if property == "border-top"
+        || property == "border-right"
+        || property == "border-bottom"
+        || property == "border-left"
     {
         return Some(CssValue::Keyword(val.to_string()));
     }

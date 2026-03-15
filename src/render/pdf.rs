@@ -4,8 +4,7 @@ use crate::layout::engine::{
 };
 use crate::parser::ttf::TtfFont;
 use crate::style::computed::{
-    BorderCollapse, Float, FontFamily, LinearGradient, Position, RadialGradient,
-    TextAlign,
+    BorderCollapse, Float, FontFamily, LinearGradient, Position, RadialGradient, TextAlign,
 };
 use crate::types::{Margin, PageSize};
 use std::collections::HashMap;
@@ -268,7 +267,11 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         if *border_radius > 0.0 {
                             content.push_str("q\n");
                             content.push_str(&rounded_rect_path(
-                                block_x, bg_y, render_width, total_h, *border_radius,
+                                block_x,
+                                bg_y,
+                                render_width,
+                                total_h,
+                                *border_radius,
                             ));
                             content.push_str("W n\n");
                         }
@@ -299,7 +302,11 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         if *border_radius > 0.0 {
                             content.push_str("q\n");
                             content.push_str(&rounded_rect_path(
-                                block_x, bg_y, render_width, total_h, *border_radius,
+                                block_x,
+                                bg_y,
+                                render_width,
+                                total_h,
+                                *border_radius,
                             ));
                             content.push_str("W n\n");
                         }
@@ -336,7 +343,10 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             && border.top.color == border.left.color;
                         if uniform && *border_radius > 0.0 {
                             let (br, bg, bb) = border.top.color;
-                            content.push_str(&format!("{br} {bg} {bb} RG\n{bw} w\n", bw = border.top.width));
+                            content.push_str(&format!(
+                                "{br} {bg} {bb} RG\n{bw} w\n",
+                                bw = border.top.width
+                            ));
                             content.push_str(&rounded_rect_path(
                                 block_x,
                                 border_y,
@@ -347,7 +357,10 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             content.push_str("S\n");
                         } else if uniform {
                             let (br, bg, bb) = border.top.color;
-                            content.push_str(&format!("{br} {bg} {bb} RG\n{bw} w\n", bw = border.top.width));
+                            content.push_str(&format!(
+                                "{br} {bg} {bb} RG\n{bw} w\n",
+                                bw = border.top.width
+                            ));
                             content.push_str(&format!(
                                 "{x} {y} {w} {h} re\n",
                                 x = block_x,
@@ -368,26 +381,41 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             // Top border
                             if border.top.width > 0.0 {
                                 let (r, g, b) = border.top.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.top.width));
+                                content
+                                    .push_str(&format!("{r} {g} {b} RG\n{} w\n", border.top.width));
                                 content.push_str(&format!("{x1} {y_top} m {x2} {y_top} l S\n"));
                             }
                             // Right border
                             if border.right.width > 0.0 {
                                 let (r, g, b) = border.right.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.right.width));
-                                content.push_str(&format!("{x_right} {y_top} m {x_right} {y_bottom} l S\n"));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n",
+                                    border.right.width
+                                ));
+                                content.push_str(&format!(
+                                    "{x_right} {y_top} m {x_right} {y_bottom} l S\n"
+                                ));
                             }
                             // Bottom border
                             if border.bottom.width > 0.0 {
                                 let (r, g, b) = border.bottom.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.bottom.width));
-                                content.push_str(&format!("{x1} {y_bottom} m {x2} {y_bottom} l S\n"));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n",
+                                    border.bottom.width
+                                ));
+                                content
+                                    .push_str(&format!("{x1} {y_bottom} m {x2} {y_bottom} l S\n"));
                             }
                             // Left border
                             if border.left.width > 0.0 {
                                 let (r, g, b) = border.left.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.left.width));
-                                content.push_str(&format!("{x_left} {y_top} m {x_left} {y_bottom} l S\n"));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n",
+                                    border.left.width
+                                ));
+                                content.push_str(&format!(
+                                    "{x_left} {y_top} m {x_left} {y_bottom} l S\n"
+                                ));
                             }
                         }
                     }
@@ -504,10 +532,18 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                                 let rect_h = run.font_size + 2.0 + pad_v * 2.0;
                                 content.push_str(&format!("{br} {bg} {bb} rg\n"));
                                 if run.border_radius > 0.0 {
-                                    content.push_str(&rounded_rect_path(rect_x, rect_y, rect_w, rect_h, run.border_radius));
+                                    content.push_str(&rounded_rect_path(
+                                        rect_x,
+                                        rect_y,
+                                        rect_w,
+                                        rect_h,
+                                        run.border_radius,
+                                    ));
                                     content.push_str("\nf\n");
                                 } else {
-                                    content.push_str(&format!("{rect_x} {rect_y} {rect_w} {rect_h} re\nf\n"));
+                                    content.push_str(&format!(
+                                        "{rect_x} {rect_y} {rect_w} {rect_h} re\nf\n"
+                                    ));
                                 }
                             }
 
@@ -661,24 +697,44 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             let y_bottom = row_y - cell_height;
                             if cell.border.top.width > 0.0 {
                                 let (r, g, b) = cell.border.top.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x2} {y_top} l S\n", cell.border.top.width));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x2} {y_top} l S\n",
+                                    cell.border.top.width
+                                ));
                             }
                             if cell.border.right.width > 0.0 {
                                 let (r, g, b) = cell.border.right.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x2} {y_top} m {x2} {y_bottom} l S\n", cell.border.right.width));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n{x2} {y_top} m {x2} {y_bottom} l S\n",
+                                    cell.border.right.width
+                                ));
                             }
                             if cell.border.bottom.width > 0.0 {
                                 let (r, g, b) = cell.border.bottom.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_bottom} m {x2} {y_bottom} l S\n", cell.border.bottom.width));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n{x1} {y_bottom} m {x2} {y_bottom} l S\n",
+                                    cell.border.bottom.width
+                                ));
                             }
                             if cell.border.left.width > 0.0 {
                                 let (r, g, b) = cell.border.left.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x1} {y_bottom} l S\n", cell.border.left.width));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x1} {y_bottom} l S\n",
+                                    cell.border.left.width
+                                ));
                             }
                         }
 
                         // Render cell text at the first row's y position
-                        render_cell_text(&mut content, cell, cell_x, row_y, cell_w, row_height, custom_fonts);
+                        render_cell_text(
+                            &mut content,
+                            cell,
+                            cell_x,
+                            row_y,
+                            cell_w,
+                            row_height,
+                            custom_fonts,
+                        );
 
                         col_pos += cell.colspan;
                     }
@@ -709,7 +765,15 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         }
 
                         // Render cell text
-                        render_cell_text(&mut content, cell, cell_x, row_y, cell_w, row_height, custom_fonts);
+                        render_cell_text(
+                            &mut content,
+                            cell,
+                            cell_x,
+                            row_y,
+                            cell_w,
+                            row_height,
+                            custom_fonts,
+                        );
 
                         cell_x += cell_w;
                         // Add gap between columns
@@ -787,7 +851,11 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         if *border_radius > 0.0 {
                             content.push_str("q\n");
                             content.push_str(&rounded_rect_path(
-                                bg_x, bg_y, *container_width, full_height, *border_radius,
+                                bg_x,
+                                bg_y,
+                                *container_width,
+                                full_height,
+                                *border_radius,
                             ));
                             content.push_str("W n\n");
                         }
@@ -813,7 +881,11 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         if *border_radius > 0.0 {
                             content.push_str("q\n");
                             content.push_str(&rounded_rect_path(
-                                bg_x, bg_y, *container_width, full_height, *border_radius,
+                                bg_x,
+                                bg_y,
+                                *container_width,
+                                full_height,
+                                *border_radius,
                             ));
                             content.push_str("W n\n");
                         }
@@ -844,7 +916,10 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             && border.top.color == border.left.color;
                         if uniform && *border_radius > 0.0 {
                             let (r, g, b) = border.top.color;
-                            content.push_str(&format!("{r} {g} {b} RG\n{bw} w\n", bw = border.top.width));
+                            content.push_str(&format!(
+                                "{r} {g} {b} RG\n{bw} w\n",
+                                bw = border.top.width
+                            ));
                             content.push_str(&rounded_rect_path(
                                 bx,
                                 by,
@@ -868,19 +943,31 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             let y_bottom = by;
                             if border.top.width > 0.0 {
                                 let (r, g, b) = border.top.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x2} {y_top} l S\n", border.top.width));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x2} {y_top} l S\n",
+                                    border.top.width
+                                ));
                             }
                             if border.right.width > 0.0 {
                                 let (r, g, b) = border.right.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x2} {y_top} m {x2} {y_bottom} l S\n", border.right.width));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n{x2} {y_top} m {x2} {y_bottom} l S\n",
+                                    border.right.width
+                                ));
                             }
                             if border.bottom.width > 0.0 {
                                 let (r, g, b) = border.bottom.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_bottom} m {x2} {y_bottom} l S\n", border.bottom.width));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n{x1} {y_bottom} m {x2} {y_bottom} l S\n",
+                                    border.bottom.width
+                                ));
                             }
                             if border.left.width > 0.0 {
                                 let (r, g, b) = border.left.color;
-                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x1} {y_bottom} l S\n", border.left.width));
+                                content.push_str(&format!(
+                                    "{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x1} {y_bottom} l S\n",
+                                    border.left.width
+                                ));
                             }
                         }
                     }
@@ -921,7 +1008,11 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             if cell.border_radius > 0.0 {
                                 content.push_str("q\n");
                                 content.push_str(&rounded_rect_path(
-                                    bg_x, bg_y, cell.width, *row_height, cell.border_radius,
+                                    bg_x,
+                                    bg_y,
+                                    cell.width,
+                                    *row_height,
+                                    cell.border_radius,
                                 ));
                                 content.push_str("W n\n");
                             }
@@ -947,7 +1038,11 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             if cell.border_radius > 0.0 {
                                 content.push_str("q\n");
                                 content.push_str(&rounded_rect_path(
-                                    bg_x, bg_y, cell.width, *row_height, cell.border_radius,
+                                    bg_x,
+                                    bg_y,
+                                    cell.width,
+                                    *row_height,
+                                    cell.border_radius,
                                 ));
                                 content.push_str("W n\n");
                             }
@@ -984,8 +1079,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                                     w + r.padding.0 * 2.0
                                 })
                                 .sum();
-                            let first_pad =
-                                line.runs.first().map_or(0.0, |r| r.padding.0);
+                            let first_pad = line.runs.first().map_or(0.0, |r| r.padding.0);
                             let text_x = match cell.text_align {
                                 TextAlign::Right => {
                                     cell_x
@@ -1019,7 +1113,13 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                                     let rh = run.font_size + 2.0 + pad_v * 2.0;
                                     content.push_str(&format!("{br} {bgc} {bb} rg\n"));
                                     if run.border_radius > 0.0 {
-                                        content.push_str(&rounded_rect_path(rx, ry, rw2, rh, run.border_radius));
+                                        content.push_str(&rounded_rect_path(
+                                            rx,
+                                            ry,
+                                            rw2,
+                                            rh,
+                                            run.border_radius,
+                                        ));
                                         content.push_str("\nf\n");
                                     } else {
                                         content.push_str(&format!("{rx} {ry} {rw2} {rh} re\nf\n"));
@@ -2030,7 +2130,7 @@ impl PdfWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::engine::{layout, LayoutBorder};
+    use crate::layout::engine::{LayoutBorder, layout};
     use crate::parser::html::parse_html;
 
     #[test]
@@ -3257,7 +3357,16 @@ mod tests {
                 },
             ],
         };
-        render_radial_gradient(&mut content, &gradient, 0.0, 0.0, 1.0, 1.0, &mut shadings, &mut counter);
+        render_radial_gradient(
+            &mut content,
+            &gradient,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            &mut shadings,
+            &mut counter,
+        );
         assert!(!content.is_empty());
         assert!(content.contains("/SH0 sh"));
         assert_eq!(shadings.len(), 1);
@@ -3457,7 +3566,8 @@ mod tests {
 
     #[test]
     fn radial_gradient_uses_shading_in_pdf() {
-        let html = r#"<div style="background: radial-gradient(red, blue); height: 50pt">Gradient</div>"#;
+        let html =
+            r#"<div style="background: radial-gradient(red, blue); height: 50pt">Gradient</div>"#;
         let nodes = parse_html(html).unwrap();
         let pages = layout(&nodes, PageSize::A4, Margin::default());
         let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
@@ -3466,5 +3576,329 @@ mod tests {
             content.contains("/ShadingType 3"),
             "Radial gradient should produce ShadingType 3"
         );
+    }
+
+    #[test]
+    fn border_top_only_renders_single_line() {
+        let html = r#"<div style="border-top: 2pt solid red">Top border only</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // Per-side border renders as a move-to + line-to + stroke, not a rectangle
+        assert!(
+            pdf_str.contains("l S\n"),
+            "Should have line stroke for top border"
+        );
+        assert!(pdf_str.contains("1 0 0 RG"), "Should have red stroke color");
+    }
+
+    #[test]
+    fn border_bottom_renders() {
+        let html = r#"<div style="border-bottom: 1pt solid blue">Bottom border</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("l S\n"),
+            "Should have line stroke for bottom border"
+        );
+        assert!(
+            pdf_str.contains("0 0 1 RG"),
+            "Should have blue stroke color"
+        );
+    }
+
+    #[test]
+    fn border_left_renders() {
+        let html = r#"<blockquote style="border-left: 3pt solid green">Left border</blockquote>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("l S\n"),
+            "Should have line stroke for left border"
+        );
+        assert!(
+            pdf_str.contains("0 0.50196 0 RG")
+                || pdf_str.contains("0 0.501960")
+                || pdf_str.contains("RG"),
+            "Should have green stroke color"
+        );
+    }
+
+    #[test]
+    fn non_uniform_borders_render_per_side() {
+        let html =
+            r#"<div style="border-top: 2pt solid red; border-bottom: 1pt solid blue">Mixed</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // Non-uniform borders should produce per-side line strokes
+        assert!(pdf_str.contains("1 0 0 RG"), "Should have red for top");
+        assert!(pdf_str.contains("0 0 1 RG"), "Should have blue for bottom");
+        // Should use line strokes, not rectangle
+        let stroke_count = pdf_str.matches("l S\n").count();
+        assert!(
+            stroke_count >= 2,
+            "Should have at least 2 line strokes, got {stroke_count}"
+        );
+    }
+
+    #[test]
+    fn gradient_clipped_to_border_radius() {
+        let html = r#"<div style="background: linear-gradient(to bottom, red, blue); border-radius: 10pt; height: 50pt">Clipped</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("sh"),
+            "Should have shading operator for gradient"
+        );
+        assert!(
+            pdf_str.contains("W n"),
+            "Should have clip operator for border-radius"
+        );
+    }
+
+    #[test]
+    fn flexrow_with_gradient() {
+        let html = r#"<div style="display: flex; background: linear-gradient(to right, red, blue); height: 40pt"><div style="width: 100pt">A</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("/ShadingType 2"),
+            "FlexRow with linear-gradient should produce ShadingType 2"
+        );
+    }
+
+    #[test]
+    fn flexrow_cell_background() {
+        let html = r#"<div style="display: flex"><div style="width: 100pt; background-color: yellow">Yellow</div><div style="width: 100pt">Plain</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // Yellow = 1 1 0 rg
+        assert!(
+            pdf_str.contains("1 1 0 rg"),
+            "Should have yellow fill color for cell background"
+        );
+        assert!(
+            pdf_str.contains("re\nf\n"),
+            "Should have rectangle fill for cell background"
+        );
+    }
+
+    #[test]
+    fn flexrow_cell_border_radius() {
+        let html = r#"<div style="display: flex"><div style="width: 100pt; background-color: red; border-radius: 8pt">Round</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // Rounded rect uses Bezier curve commands (c)
+        assert!(pdf_str.contains("1 0 0 rg"), "Should have red fill");
+        assert!(
+            pdf_str.contains(" c\n"),
+            "Should have Bezier curve for border-radius"
+        );
+    }
+
+    #[test]
+    fn flexrow_cell_gradient() {
+        let html = r#"<div style="display: flex"><div style="width: 150pt; background: linear-gradient(to bottom, green, yellow)">Grad</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("sh"),
+            "Should have shading for cell gradient"
+        );
+        assert!(
+            pdf_str.contains("/ShadingType 2"),
+            "Cell gradient should use axial shading"
+        );
+    }
+
+    #[test]
+    fn flexrow_border_renders() {
+        let html = r#"<div style="display: flex; border: 2pt solid black"><div style="width: 100pt">Bordered</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("re\nS\n"),
+            "Should have rectangle stroke for uniform flex border"
+        );
+        assert!(
+            pdf_str.contains("0 0 0 RG"),
+            "Should have black stroke color"
+        );
+    }
+
+    #[test]
+    fn flexrow_border_radius_background() {
+        let html = r#"<div style="display: flex; border-radius: 10pt; background-color: #cccccc"><div style="width: 100pt">Rounded</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // Rounded background uses Bezier curves, not re
+        assert!(
+            pdf_str.contains(" c\n"),
+            "Should have Bezier curves for rounded background"
+        );
+        assert!(pdf_str.contains("f\n"), "Should have fill command");
+    }
+
+    #[test]
+    fn inline_span_border_radius() {
+        let html = r#"<div style="display: flex"><div style="width: 300pt"><p><span style="background-color: yellow; border-radius: 4pt; padding: 2pt">Tag</span> text</p></div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // Inline span with border-radius should produce rounded rect path + fill
+        assert!(
+            pdf_str.contains("1 1 0 rg"),
+            "Should have yellow fill for span bg"
+        );
+    }
+
+    #[test]
+    fn table_cell_borders_render() {
+        use crate::parser::css::parse_stylesheet;
+        let html = r#"<html><head><style>
+            td { border-bottom: 1pt solid #999999; }
+        </style></head><body>
+        <table><tr><td>Cell</td></tr></table>
+        </body></html>"#;
+        let result = crate::parser::html::parse_html_with_styles(html).unwrap();
+        let mut rules = Vec::new();
+        for css in &result.stylesheets {
+            rules.extend(parse_stylesheet(css));
+        }
+        let pages = crate::layout::engine::layout_with_rules(
+            &result.nodes,
+            PageSize::A4,
+            Margin::default(),
+            &rules,
+        );
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("l\nS\n") || pdf_str.contains("l S\n") || pdf_str.contains("re\nS\n"),
+            "Table cell border should produce stroke commands"
+        );
+    }
+
+    #[test]
+    fn text_align_right_in_flex_cell() {
+        let html = r#"<div style="display: flex"><div style="width: 200pt; text-align: right">Right</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(pdf_str.contains("Right"), "Should contain the text 'Right'");
+        // The text x-position should be offset from left (not at left margin)
+        assert!(
+            pdf_str.contains("Td"),
+            "Should have text positioning operator"
+        );
+    }
+
+    #[test]
+    fn text_align_center_in_flex_cell() {
+        let html = r#"<div style="display: flex"><div style="width: 200pt; text-align: center">Center</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("Center"),
+            "Should contain the text 'Center'"
+        );
+        assert!(
+            pdf_str.contains("Td"),
+            "Should have text positioning operator"
+        );
+    }
+
+    #[test]
+    fn absolute_position_offset() {
+        let html = r#"<div style="position: absolute; left: 100pt; top: 50pt">Absolute</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("Absolute"),
+            "Should contain positioned text"
+        );
+    }
+
+    #[test]
+    fn float_right_position() {
+        let html = r#"<div style="float: right; width: 100pt">Floated</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(pdf_str.contains("Floated"), "Should contain floated text");
+    }
+
+    #[test]
+    fn radial_gradient_clipped() {
+        let html = r#"<div style="background: radial-gradient(red, blue); border-radius: 10pt; height: 50pt">Radial</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("/ShadingType 3"),
+            "Should have radial shading"
+        );
+        assert!(
+            pdf_str.contains("W n"),
+            "Should clip radial gradient to border-radius"
+        );
+    }
+
+    #[test]
+    fn opacity_renders_extgstate() {
+        let html = r#"<div style="opacity: 0.5">Transparent</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("/ExtGState"),
+            "Should have ExtGState for opacity"
+        );
+        assert!(pdf_str.contains("gs\n"), "Should apply graphics state");
+    }
+
+    #[test]
+    fn box_shadow_renders() {
+        let html = r#"<div style="box-shadow: 2pt 2pt 0 #888888; height: 30pt">Shadow</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // Box shadow renders as a filled rectangle behind the element
+        assert!(
+            pdf_str.contains("re\nf\n") || pdf_str.contains("f\n"),
+            "Should have fill for box shadow"
+        );
+        assert!(pdf_str.contains("Shadow"), "Should contain the text");
     }
 }

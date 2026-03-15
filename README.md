@@ -400,15 +400,24 @@ Sanitization can be disabled with `.sanitize(false)` if you trust the input.
 
 ## How It Works
 
-```
-Input --> Sanitize --> Parse (html5ever) --> Extract <style> --> Style cascade --> Layout engine --> PDF
+```mermaid
+graph LR
+    A[HTML / Markdown] --> B[Sanitize]
+    B --> C[Parse<br/>html5ever]
+    C --> D[Extract<br/>‹style›]
+    D --> E[Style<br/>Cascade]
+    E --> F[Layout<br/>Engine]
+    F --> G[PDF 1.4]
+
+    style A fill:#3498db,color:#fff,stroke:none
+    style G fill:#27ae60,color:#fff,stroke:none
 ```
 
-1. **Sanitize** the input HTML to remove dangerous elements
-2. **Parse** HTML into a DOM tree using html5ever, extracting `<style>` blocks
-3. **Resolve styles** by cascading: tag defaults, then `@media print` rules, then stylesheet rules, then inline CSS
-4. **Layout** elements with text wrapping, float positioning, page breaks, tables, lists, images, and the CSS box model
-5. **Render** to PDF 1.4 with text, graphics, link annotations, embedded images, and custom fonts
+1. **Sanitize** — strip dangerous elements (`<script>`, `<iframe>`, event handlers, `javascript:` URLs)
+2. **Parse** — build a DOM tree using html5ever, extract `<style>` blocks and `@page`/`@font-face` rules
+3. **Style cascade** — resolve tag defaults → `@media print` rules → stylesheet rules → inline CSS, with `inherit`/`initial`/`unset` and CSS variable support
+4. **Layout** — text wrapping with Adobe font metrics, flexbox, tables with colspan/rowspan, floats, page breaks, images, SVG, and the full CSS box model
+5. **Render** — PDF 1.4 output with native Shading Dictionaries for gradients, per-side borders, border-radius, link annotations, embedded images, and TrueType font embedding
 
 For Markdown input, a built-in parser converts Markdown to HTML first (no external dependencies).
 

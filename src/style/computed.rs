@@ -337,16 +337,32 @@ pub struct BorderSides {
 impl BorderSides {
     pub fn uniform(width: f32, color: Option<Color>) -> Self {
         let side = BorderSide { width, color };
-        Self { top: side, right: side, bottom: side, left: side }
+        Self {
+            top: side,
+            right: side,
+            bottom: side,
+            left: side,
+        }
     }
     pub fn has_any(&self) -> bool {
-        self.top.width > 0.0 || self.right.width > 0.0 || self.bottom.width > 0.0 || self.left.width > 0.0
+        self.top.width > 0.0
+            || self.right.width > 0.0
+            || self.bottom.width > 0.0
+            || self.left.width > 0.0
     }
     pub fn max_width(&self) -> f32 {
-        self.top.width.max(self.right.width).max(self.bottom.width).max(self.left.width)
+        self.top
+            .width
+            .max(self.right.width)
+            .max(self.bottom.width)
+            .max(self.left.width)
     }
-    pub fn horizontal_width(&self) -> f32 { self.left.width + self.right.width }
-    pub fn vertical_width(&self) -> f32 { self.top.width + self.bottom.width }
+    pub fn horizontal_width(&self) -> f32 {
+        self.left.width + self.right.width
+    }
+    pub fn vertical_width(&self) -> f32 {
+        self.top.width + self.bottom.width
+    }
 }
 
 /// Fully resolved style for a node.
@@ -1066,10 +1082,30 @@ pub(crate) fn apply_style_map(style: &mut ComputedStyle, map: &StyleMap, parent:
 
     // Per-side border shorthands
     for (prop, setter) in &[
-        ("border-top", (|s: &mut ComputedStyle, w, c| { s.border.top = BorderSide { width: w, color: c }; }) as fn(&mut ComputedStyle, f32, Option<Color>)),
-        ("border-right", (|s: &mut ComputedStyle, w, c| { s.border.right = BorderSide { width: w, color: c }; }) as fn(&mut ComputedStyle, f32, Option<Color>)),
-        ("border-bottom", (|s: &mut ComputedStyle, w, c| { s.border.bottom = BorderSide { width: w, color: c }; }) as fn(&mut ComputedStyle, f32, Option<Color>)),
-        ("border-left", (|s: &mut ComputedStyle, w, c| { s.border.left = BorderSide { width: w, color: c }; }) as fn(&mut ComputedStyle, f32, Option<Color>)),
+        (
+            "border-top",
+            (|s: &mut ComputedStyle, w, c| {
+                s.border.top = BorderSide { width: w, color: c };
+            }) as fn(&mut ComputedStyle, f32, Option<Color>),
+        ),
+        (
+            "border-right",
+            (|s: &mut ComputedStyle, w, c| {
+                s.border.right = BorderSide { width: w, color: c };
+            }) as fn(&mut ComputedStyle, f32, Option<Color>),
+        ),
+        (
+            "border-bottom",
+            (|s: &mut ComputedStyle, w, c| {
+                s.border.bottom = BorderSide { width: w, color: c };
+            }) as fn(&mut ComputedStyle, f32, Option<Color>),
+        ),
+        (
+            "border-left",
+            (|s: &mut ComputedStyle, w, c| {
+                s.border.left = BorderSide { width: w, color: c };
+            }) as fn(&mut ComputedStyle, f32, Option<Color>),
+        ),
     ] {
         if let Some(CssValue::Keyword(k)) = get_non_special(map, prop) {
             let (w, c) = parse_border_shorthand(k);
@@ -1385,7 +1421,12 @@ pub(crate) fn apply_style_map(style: &mut ComputedStyle, map: &StyleMap, parent:
             s.grid_gap = v;
         }),
         ("grid-gap", |s, v| s.grid_gap = v),
-        ("border-width", |s, v| { s.border.top.width = v; s.border.right.width = v; s.border.bottom.width = v; s.border.left.width = v; }),
+        ("border-width", |s, v| {
+            s.border.top.width = v;
+            s.border.right.width = v;
+            s.border.bottom.width = v;
+            s.border.left.width = v;
+        }),
         ("border-radius", |s, v| s.border_radius = v),
         ("text-indent", |s, v| s.text_indent = v),
         ("letter-spacing", |s, v| s.letter_spacing = v),
@@ -5819,15 +5860,7 @@ mod tests {
     fn border_top_from_stylesheet() {
         let rules = crate::parser::css::parse_stylesheet("div { border-top: 1pt solid red }");
         let parent = ComputedStyle::default();
-        let style = compute_style_with_rules(
-            HtmlTag::Div,
-            None,
-            &parent,
-            &rules,
-            "div",
-            &[],
-            None,
-        );
+        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &rules, "div", &[], None);
         assert!((style.border.top.width - 1.0).abs() < 0.1);
         let c = style.border.top.color.unwrap();
         assert_eq!(c.r, 255);
@@ -5843,15 +5876,7 @@ mod tests {
     fn border_left_from_stylesheet() {
         let rules = crate::parser::css::parse_stylesheet("div { border-left: 3pt solid blue }");
         let parent = ComputedStyle::default();
-        let style = compute_style_with_rules(
-            HtmlTag::Div,
-            None,
-            &parent,
-            &rules,
-            "div",
-            &[],
-            None,
-        );
+        let style = compute_style_with_rules(HtmlTag::Div, None, &parent, &rules, "div", &[], None);
         assert!((style.border.left.width - 3.0).abs() < 0.1);
         let c = style.border.left.color.unwrap();
         assert_eq!(c.r, 0);
@@ -5866,7 +5891,12 @@ mod tests {
     fn border_shorthand_sets_all_sides() {
         let parent = ComputedStyle::default();
         let style = compute_style(HtmlTag::Div, Some("border: 2pt solid black"), &parent);
-        for side in [style.border.top, style.border.right, style.border.bottom, style.border.left] {
+        for side in [
+            style.border.top,
+            style.border.right,
+            style.border.bottom,
+            style.border.left,
+        ] {
             assert!((side.width - 2.0).abs() < 0.1);
             let c = side.color.unwrap();
             assert_eq!((c.r, c.g, c.b), (0, 0, 0));
@@ -5897,7 +5927,10 @@ mod tests {
     #[test]
     fn border_does_not_inherit() {
         let mut parent = ComputedStyle::default();
-        parent.border.top = BorderSide { width: 1.0, color: Some(Color::rgb(0, 0, 0)) };
+        parent.border.top = BorderSide {
+            width: 1.0,
+            color: Some(Color::rgb(0, 0, 0)),
+        };
         let style = compute_style(HtmlTag::Span, None, &parent);
         assert!((style.border.top.width).abs() < 0.01);
         assert!((style.border.bottom.width).abs() < 0.01);
