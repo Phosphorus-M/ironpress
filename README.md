@@ -30,7 +30,8 @@ Other Rust PDF crates shell out to headless Chrome or wkhtmltopdf. ironpress doe
 - [Async API](#async-api)
 - [Security](#security)
 - [How It Works](#how-it-works)
-- [What's Next](#whats-next)
+- [WASM](#wasm)
+- [Testing](#testing)
 - [License](#license)
 
 ## Quick Start
@@ -421,13 +422,23 @@ graph LR
 
 For Markdown input, a built-in parser converts Markdown to HTML first (no external dependencies).
 
+## WASM
+
+ironpress compiles to WebAssembly for browser-side PDF generation:
+
+```bash
+cargo build --target wasm32-unknown-unknown --no-default-features
+```
+
+No system dependencies, no filesystem access needed in the core pipeline.
+
 ## Testing
 
 ironpress uses three layers of testing:
 
-- **Unit tests**:1500+ tests covering parsing, style computation, layout, and rendering
-- **Property-based tests**:[proptest](https://crates.io/crates/proptest) verifies invariants across thousands of random inputs (no panics on arbitrary HTML/CSS/Markdown, valid PDF output, correct page structure)
-- **Fuzz targets**:[cargo-fuzz](https://rust-fuzz.github.io/book/cargo-fuzz.html) targets for HTML, CSS, Markdown, and the full pipeline (`cargo +nightly fuzz run fuzz_html`)
+- **Unit tests**: 1500+ tests covering parsing, style computation, layout, and rendering
+- **Property-based tests**: [proptest](https://crates.io/crates/proptest) verifies invariants across thousands of random inputs (no panics on arbitrary HTML/CSS/Markdown, valid PDF output, correct page structure)
+- **Fuzz targets**: [cargo-fuzz](https://rust-fuzz.github.io/book/cargo-fuzz.html) targets for HTML, CSS, Markdown, and the full pipeline (`cargo +nightly fuzz run fuzz_html`)
 
 ## License
 

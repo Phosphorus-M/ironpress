@@ -2,14 +2,12 @@ use proptest::prelude::*;
 
 /// Generate arbitrary HTML-like strings
 fn arb_html() -> impl Strategy<Value = String> {
-    prop::string::string_regex("<[a-z]{1,5}( [a-z]+=\"[^\"]*\")*>[^<]{0,100}</[a-z]{1,5}>")
-        .unwrap()
+    prop::string::string_regex("<[a-z]{1,5}( [a-z]+=\"[^\"]*\")*>[^<]{0,100}</[a-z]{1,5}>").unwrap()
 }
 
 /// Generate arbitrary CSS-like strings
 fn arb_css() -> impl Strategy<Value = String> {
-    prop::string::string_regex("[a-z]{1,10} \\{ [a-z-]{1,15}: [a-z0-9#%]{1,10}; \\}")
-        .unwrap()
+    prop::string::string_regex("[a-z]{1,10} \\{ [a-z-]{1,15}: [a-z0-9#%]{1,10}; \\}").unwrap()
 }
 
 proptest! {
