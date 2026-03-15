@@ -159,7 +159,7 @@ Supported Markdown syntax: headings (`#` to `######`), bold (`**`), italic (`*`)
 |----------|-----------|
 | Typography | `font-size`, `font-weight`, `font-style`, `font-family`, `letter-spacing`, `word-spacing`, `text-indent`, `text-transform`, `white-space`, `vertical-align`, `text-overflow` |
 | Colors | `color`, `background-color`, `opacity` |
-| Box model | `margin` (including `auto`), `padding`, `border`, `border-width`, `border-color`, `border-radius`, `outline`, `outline-width`, `outline-color`, `box-sizing`, `width`, `height`, `min-width`, `min-height`, `max-width`, `max-height` |
+| Box model | `margin` (including `auto`), `padding`, `border`, `border-top/right/bottom/left`, `border-width`, `border-color`, `border-radius`, `outline`, `outline-width`, `outline-color`, `box-sizing`, `width`, `height`, `min-width`, `min-height`, `max-width`, `max-height` |
 | Layout | `text-align` (left, center, right, justify), `line-height`, `display` (none, block, inline, flex, grid), `float` (left, right), `clear`, `position` (static, relative, absolute), `z-index` |
 | Flexbox | `flex-direction`, `justify-content`, `align-items`, `flex-wrap`, `gap` |
 | Grid | `grid-template-columns` (fixed, `fr`, `auto`), `grid-gap` |
@@ -371,7 +371,7 @@ HtmlConverter::new()
 Enable the `async` feature for async file I/O:
 
 ```toml
-ironpress = { version = "0.8", features = ["async"] }
+ironpress = { version = "0.9", features = ["async"] }
 ```
 
 ```rust
@@ -436,6 +436,17 @@ ironpress focuses on being the best HTML/CSS/Markdown to PDF engine in Rust. Oth
 
 - [x] Hyphenation for long words in narrow containers
 - [x] `letter-spacing` and `word-spacing` applied in PDF output (`Tc` / `Tw` operators)
+- [x] Per-side borders (`border-top`, `border-right`, `border-bottom`, `border-left`) with independent width and color
+- [x] Native PDF Shading Dictionaries for pixel-perfect linear and radial gradients (no banding)
+- [x] Adobe AFM font metrics for Helvetica, Helvetica-Bold, Courier, TimesRoman — precise text alignment and underline widths
+- [x] Gradient clipping to `border-radius` — rounded gradient backgrounds
+- [x] Inline span `border-radius` — badge/pill styling with rounded corners
+- [x] Vertical centering in table cells (CSS `vertical-align: middle` behavior)
+- [x] Flex container percentage widths resolve against actual container width (gap-aware)
+- [x] Wrapper backgrounds for block elements with only block children (gradient/border-radius on containers)
+- [x] `body` CSS rules applied to root style (font-size, color, font-family)
+- [x] Descendant selector matching in flex children and inline text collection
+- [x] Section-relative `nth-child` counting in tables (per thead/tbody/tfoot)
 
 **Post-v1**
 

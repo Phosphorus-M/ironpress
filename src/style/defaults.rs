@@ -252,4 +252,13 @@ mod tests {
         let s = default_style(HtmlTag::Unknown);
         assert!(s.properties.is_empty());
     }
+
+    #[test]
+    fn p_has_no_default_font_size() {
+        let s = default_style(HtmlTag::P);
+        assert!(
+            s.get("font-size").is_none(),
+            "P tag should not have a default font-size (it inherits from parent)"
+        );
+    }
 }

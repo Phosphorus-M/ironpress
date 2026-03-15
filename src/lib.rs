@@ -1771,57 +1771,62 @@ fn main() {
 
     #[test]
     fn pdf_linear_gradient_renders_strips() {
-        // Covers pdf.rs lines 245-261, 806-864: linear gradient rendering
+        // Linear gradient uses native PDF shading dictionaries
         let html = r#"<p style="background: linear-gradient(to right, red, blue); width: 200pt; height: 50pt; padding: 10pt">Gradient</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains("rg\n"));
-        assert!(content.contains("re\nf\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/ShadingType 2"));
     }
 
     #[test]
     fn pdf_linear_gradient_vertical() {
-        // Covers pdf.rs lines 831-847: vertical gradient (to bottom)
+        // Vertical gradient (to bottom) uses shading dictionary
         let html = r#"<p style="background: linear-gradient(to bottom, red, blue); width: 200pt; height: 50pt; padding: 10pt">VertGrad</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains("re\nf\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/ShadingType 2"));
     }
 
     #[test]
     fn pdf_linear_gradient_with_block_height() {
-        // Covers pdf.rs line 251: gradient with block_height Some(h)
+        // Gradient with block_height uses shading dictionary
         let html = r#"<p style="background: linear-gradient(to right, red, blue); width: 200pt; height: 100pt; padding: 10pt">GradHeight</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains("re\nf\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/ShadingType 2"));
     }
 
     #[test]
     fn pdf_linear_gradient_diagonal() {
-        // Covers pdf.rs lines 848-863: angled gradient (45deg)
+        // Diagonal gradient uses shading dictionary
         let html = r#"<p style="background: linear-gradient(45deg, red, blue); width: 200pt; height: 50pt; padding: 10pt">DiagGrad</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains("re\nf\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/ShadingType 2"));
     }
 
     #[test]
     fn pdf_radial_gradient_renders_circles() {
-        // Covers pdf.rs lines 264-281, 867-900: radial gradient rendering
+        // Radial gradient uses native PDF shading dictionary (Type 3)
         let html = r#"<p style="background: radial-gradient(red, blue); width: 200pt; height: 100pt; padding: 10pt">Radial</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains(" c\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/ShadingType 3"));
     }
 
     #[test]
     fn pdf_radial_gradient_with_block_height() {
-        // Covers pdf.rs line 270: radial gradient with block_height Some(h)
+        // Radial gradient with block_height uses shading dictionary
         let html = r#"<p style="background: radial-gradient(red, blue); width: 200pt; height: 120pt; padding: 10pt">RadialH</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains(" c\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/ShadingType 3"));
     }
 
     #[test]
@@ -2423,29 +2428,32 @@ fn main() {
 
     #[test]
     fn pdf_linear_gradient_to_left() {
-        // Covers pdf.rs line 819: reversed horizontal gradient (to left)
+        // Reversed horizontal gradient uses shading dictionary
         let html = r#"<p style="background: linear-gradient(to left, red, blue); width: 200pt; height: 50pt; padding: 10pt">ToLeft</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains("re\nf\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/ShadingType 2"));
     }
 
     #[test]
     fn pdf_linear_gradient_to_top_vertical() {
-        // Covers pdf.rs lines 832-845: vertical gradient to top (reversed)
+        // Vertical gradient to top uses shading dictionary
         let html = r#"<p style="background: linear-gradient(to top, red, blue); width: 200pt; height: 50pt; padding: 10pt">ToTop</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains("re\nf\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/ShadingType 2"));
     }
 
     #[test]
     fn pdf_gradient_three_stops() {
-        // Covers pdf.rs lines 781, 784, 794: color_at_position with multiple stops
+        // Three-stop gradient uses stitching function (Type 3)
         let html = r#"<p style="background: linear-gradient(to right, red 0%, white 50%, blue 100%); width: 200pt; height: 50pt; padding: 10pt">ThreeStops</p>"#;
         let pdf = html_to_pdf(html).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        assert!(content.contains("re\nf\n"));
+        assert!(content.contains("sh\n"));
+        assert!(content.contains("/FunctionType 3"));
     }
 
     #[test]

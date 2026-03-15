@@ -293,4 +293,27 @@ mod tests {
         let w = char_width('\u{00E9}', 10.0, &FontFamily::Helvetica, false);
         assert!((w - 5.56).abs() < 0.01);
     }
+
+    #[test]
+    fn helvetica_uppercase_wider() {
+        // 'W' (944) should be wider than 'i' (222) in Helvetica
+        let w_upper = char_width('W', 12.0, &FontFamily::Helvetica, false);
+        let w_lower = char_width('i', 12.0, &FontFamily::Helvetica, false);
+        assert!(
+            w_upper > w_lower,
+            "W ({w_upper}) should be wider than i ({w_lower})"
+        );
+    }
+
+    #[test]
+    fn bold_wider_than_regular() {
+        // Bold 'a' (556) vs regular 'a' (556) — in Helvetica-Bold 'a' is 556 same,
+        // but 'b' is 611 bold vs 556 regular
+        let regular = char_width('b', 12.0, &FontFamily::Helvetica, false);
+        let bold = char_width('b', 12.0, &FontFamily::Helvetica, true);
+        assert!(
+            bold > regular,
+            "Bold 'b' ({bold}) should be wider than regular 'b' ({regular})"
+        );
+    }
 }

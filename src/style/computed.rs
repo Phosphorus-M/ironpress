@@ -5814,4 +5814,94 @@ mod tests {
             assert!((g.stops[0].position - 0.0).abs() < 0.01);
         }
     }
+
+    #[test]
+    fn border_top_from_stylesheet() {
+        let rules = crate::parser::css::parse_stylesheet("div { border-top: 1pt solid red }");
+        let parent = ComputedStyle::default();
+        let style = compute_style_with_rules(
+            HtmlTag::Div,
+            None,
+            &parent,
+            &rules,
+            "div",
+            &[],
+            None,
+        );
+        assert!((style.border.top.width - 1.0).abs() < 0.1);
+        let c = style.border.top.color.unwrap();
+        assert_eq!(c.r, 255);
+        assert_eq!(c.g, 0);
+        assert_eq!(c.b, 0);
+        // Other sides should be zero
+        assert!((style.border.bottom.width).abs() < 0.01);
+        assert!((style.border.left.width).abs() < 0.01);
+        assert!((style.border.right.width).abs() < 0.01);
+    }
+
+    #[test]
+    fn border_left_from_stylesheet() {
+        let rules = crate::parser::css::parse_stylesheet("div { border-left: 3pt solid blue }");
+        let parent = ComputedStyle::default();
+        let style = compute_style_with_rules(
+            HtmlTag::Div,
+            None,
+            &parent,
+            &rules,
+            "div",
+            &[],
+            None,
+        );
+        assert!((style.border.left.width - 3.0).abs() < 0.1);
+        let c = style.border.left.color.unwrap();
+        assert_eq!(c.r, 0);
+        assert_eq!(c.g, 0);
+        assert_eq!(c.b, 255);
+        assert!((style.border.top.width).abs() < 0.01);
+        assert!((style.border.right.width).abs() < 0.01);
+        assert!((style.border.bottom.width).abs() < 0.01);
+    }
+
+    #[test]
+    fn border_shorthand_sets_all_sides() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("border: 2pt solid black"), &parent);
+        for side in [style.border.top, style.border.right, style.border.bottom, style.border.left] {
+            assert!((side.width - 2.0).abs() < 0.1);
+            let c = side.color.unwrap();
+            assert_eq!((c.r, c.g, c.b), (0, 0, 0));
+        }
+    }
+
+    #[test]
+    fn border_side_overrides_shorthand() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(
+            HtmlTag::Div,
+            Some("border: 1pt solid black; border-top: 2pt solid red"),
+            &parent,
+        );
+        // Top should be overridden to 2pt red
+        assert!((style.border.top.width - 2.0).abs() < 0.1);
+        let top_c = style.border.top.color.unwrap();
+        assert_eq!(top_c.r, 255);
+        assert_eq!(top_c.g, 0);
+        // Other sides should remain 1pt black
+        for side in [style.border.right, style.border.bottom, style.border.left] {
+            assert!((side.width - 1.0).abs() < 0.1);
+            let c = side.color.unwrap();
+            assert_eq!((c.r, c.g, c.b), (0, 0, 0));
+        }
+    }
+
+    #[test]
+    fn border_does_not_inherit() {
+        let mut parent = ComputedStyle::default();
+        parent.border.top = BorderSide { width: 1.0, color: Some(Color::rgb(0, 0, 0)) };
+        let style = compute_style(HtmlTag::Span, None, &parent);
+        assert!((style.border.top.width).abs() < 0.01);
+        assert!((style.border.bottom.width).abs() < 0.01);
+        assert!((style.border.left.width).abs() < 0.01);
+        assert!((style.border.right.width).abs() < 0.01);
+    }
 }

@@ -22,7 +22,7 @@ pub struct LayoutBorderSide {
 }
 
 /// Per-side border for layout rendering.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct LayoutBorder {
     pub top: LayoutBorderSide,
     pub right: LayoutBorderSide,
@@ -30,16 +30,7 @@ pub struct LayoutBorder {
     pub left: LayoutBorderSide,
 }
 
-impl Default for LayoutBorder {
-    fn default() -> Self {
-        Self {
-            top: LayoutBorderSide::default(),
-            right: LayoutBorderSide::default(),
-            bottom: LayoutBorderSide::default(),
-            left: LayoutBorderSide::default(),
-        }
-    }
-}
+// Default is derived via #[derive(Default)] on the struct.
 
 #[allow(dead_code)]
 impl LayoutBorder {
@@ -1183,7 +1174,7 @@ fn flatten_element(
             // Measure children total height
             let children_h: f32 = child_elements
                 .iter()
-                .map(|e| estimate_element_height(e))
+                .map(estimate_element_height)
                 .sum();
             let container_h = style.padding.top + children_h + style.padding.bottom;
             let container_h = effective_height.map_or(container_h, |h| container_h.max(h));
@@ -1275,16 +1266,14 @@ fn flatten_element(
             // inside the padded area, not at the page left margin.
             if style.padding.left > 0.0 || style.padding.right > 0.0 {
                 for child_elem in &mut child_elements {
-                    match child_elem {
-                        LayoutElement::TextBlock {
-                            padding_left,
-                            padding_right,
-                            ..
-                        } => {
-                            *padding_left += style.padding.left;
-                            *padding_right += style.padding.right;
-                        }
-                        _ => {}
+                    if let LayoutElement::TextBlock {
+                        padding_left,
+                        padding_right,
+                        ..
+                    } = child_elem
+                    {
+                        *padding_left += style.padding.left;
+                        *padding_right += style.padding.right;
                     }
                 }
             }
@@ -6480,6 +6469,144 @@ mod tests {
         assert!(
             line_count >= 3,
             "expected at least 3 lines from br tags, got {line_count}"
+        );
+    }
+
+    #[test]
+    fn body_rules_applied_to_root() {
+        let css = "body { font-size: 10pt }";
+        let rules = parse_stylesheet(css);
+        let html = "<p>text</p>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        assert!(!pages[0].elements.is_empty());
+        if let (_, LayoutElement::TextBlock { lines, .. }) = &pages[0].elements[0] {
+            assert!(!lines.is_empty());
+            let font_size = lines[0].runs[0].font_size;
+            assert!(
+                (font_size - 10.0).abs() < 0.1,
+                "Expected font_size 10.0 from body rule, got {font_size}"
+            );
+        } else {
+            panic!("Expected TextBlock");
+        }
+    }
+
+    #[test]
+    fn wrapper_textblock_for_visual_blocks() {
+        let css = ".box { background-color: red; padding: 10pt }";
+        let rules = parse_stylesheet(css);
+        let html = r#"<div class="box"><p>hello</p></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        let has_bg = pages[0].elements.iter().any(|(_, el)| {
+            matches!(el, LayoutElement::TextBlock { background_color: Some(_), .. })
+        });
+        assert!(
+            has_bg,
+            "Expected a TextBlock with background_color from .box div"
+        );
+    }
+
+    #[test]
+    fn flex_child_ancestor_selectors() {
+        let css = ".card .value { font-size: 20pt }";
+        let rules = parse_stylesheet(css);
+        let html = r#"<div class="card" style="display: flex"><div class="value">big</div></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        let items = extract_flex_items(&pages);
+        let big_item = items.iter().find(|i| i.3.contains("big"));
+        assert!(big_item.is_some(), "Did not find 'big' text in flex layout output");
+        // Verify the font size was applied via ancestor selector
+        // Check via the layout elements directly for font_size
+        let mut found = false;
+        for (_, el) in &pages[0].elements {
+            match el {
+                LayoutElement::TextBlock { lines, .. } => {
+                    for line in lines {
+                        for run in &line.runs {
+                            if run.text.contains("big") && (run.font_size - 20.0).abs() < 0.1 {
+                                found = true;
+                            }
+                        }
+                    }
+                }
+                LayoutElement::FlexRow { cells, .. } => {
+                    for cell in cells {
+                        for line in &cell.lines {
+                            for run in &line.runs {
+                                if run.text.contains("big") && (run.font_size - 20.0).abs() < 0.1 {
+                                    found = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(found, "Expected font_size 20.0 for .value in flex child");
+    }
+
+    #[test]
+    fn p_inherits_parent_font_size() {
+        let html = r#"<div style="font-size: 8pt"><p>small</p></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert!(!pages[0].elements.is_empty());
+        let mut found = false;
+        for (_, el) in &pages[0].elements {
+            if let LayoutElement::TextBlock { lines, .. } = el {
+                for line in lines {
+                    for run in &line.runs {
+                        if run.text.contains("small") {
+                            assert!(
+                                (run.font_size - 8.0).abs() < 0.1,
+                                "Expected font_size 8.0 for p inside div, got {}",
+                                run.font_size
+                            );
+                            found = true;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(found, "Did not find 'small' text run in layout output");
+    }
+
+    #[test]
+    fn table_nth_child_section_relative() {
+        let css = "tbody tr:nth-child(even) { background-color: #eee }";
+        let rules = parse_stylesheet(css);
+        let html = r#"
+            <table>
+                <thead><tr><th>H</th></tr></thead>
+                <tbody>
+                    <tr><td>Row 1</td></tr>
+                    <tr><td>Row 2</td></tr>
+                    <tr><td>Row 3</td></tr>
+                </tbody>
+            </table>
+        "#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        let table_rows: Vec<_> = pages[0]
+            .elements
+            .iter()
+            .filter_map(|(_, el)| {
+                if let LayoutElement::TableRow { cells, .. } = el {
+                    Some(cells)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        // Should have at least 4 rows (1 thead + 3 tbody)
+        assert!(
+            table_rows.len() >= 4,
+            "Expected at least 4 table rows, got {}",
+            table_rows.len()
         );
     }
 }

@@ -4,11 +4,19 @@ use crate::layout::engine::{
 };
 use crate::parser::ttf::TtfFont;
 use crate::style::computed::{
-    BorderCollapse, Float, FontFamily, GradientStop, LinearGradient, Position, RadialGradient,
+    BorderCollapse, Float, FontFamily, LinearGradient, Position, RadialGradient,
     TextAlign,
 };
 use crate::types::{Margin, PageSize};
 use std::collections::HashMap;
+
+/// A PDF shading dictionary entry for native gradient rendering.
+struct ShadingEntry {
+    name: String,
+    shading_type: u8, // 2 = axial (linear), 3 = radial
+    coords: [f32; 6],
+    stops: Vec<(f32, (f32, f32, f32))>,
+}
 
 /// A link annotation to be placed on a PDF page.
 struct LinkAnnotation {
@@ -78,6 +86,8 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
         let mut annotations: Vec<LinkAnnotation> = Vec::new();
         let mut page_images: Vec<ImageRef> = Vec::new();
         let mut page_ext_gstates: Vec<(String, f32)> = Vec::new();
+        let mut page_shadings: Vec<ShadingEntry> = Vec::new();
+        let mut shading_counter: usize = 0;
 
         for (elem_idx, (y_pos, element)) in page.elements.iter().enumerate() {
             match element {
@@ -269,6 +279,8 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             bg_y,
                             render_width,
                             total_h,
+                            &mut page_shadings,
+                            &mut shading_counter,
                         );
                         if *border_radius > 0.0 {
                             content.push_str("Q\n");
@@ -298,6 +310,8 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             bg_y,
                             render_width,
                             total_h,
+                            &mut page_shadings,
+                            &mut shading_counter,
                         );
                         if *border_radius > 0.0 {
                             content.push_str("Q\n");
@@ -345,8 +359,12 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         } else {
                             let x1 = block_x;
                             let x2 = block_x + render_width;
-                            let y_top = block_y;
-                            let y_bottom = border_y;
+                            // Offset borders by half their width so the inner edge
+                            // aligns with the padding boundary (CSS box model).
+                            let y_top = block_y + border.top.width / 2.0;
+                            let y_bottom = border_y - border.bottom.width / 2.0;
+                            let x_left = block_x - border.left.width / 2.0;
+                            let x_right = block_x + render_width + border.right.width / 2.0;
                             // Top border
                             if border.top.width > 0.0 {
                                 let (r, g, b) = border.top.color;
@@ -357,7 +375,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             if border.right.width > 0.0 {
                                 let (r, g, b) = border.right.color;
                                 content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.right.width));
-                                content.push_str(&format!("{x2} {y_top} m {x2} {y_bottom} l S\n"));
+                                content.push_str(&format!("{x_right} {y_top} m {x_right} {y_bottom} l S\n"));
                             }
                             // Bottom border
                             if border.bottom.width > 0.0 {
@@ -369,7 +387,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             if border.left.width > 0.0 {
                                 let (r, g, b) = border.left.color;
                                 content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.left.width));
-                                content.push_str(&format!("{x1} {y_top} m {x1} {y_bottom} l S\n"));
+                                content.push_str(&format!("{x_left} {y_top} m {x_left} {y_bottom} l S\n"));
                             }
                         }
                     }
@@ -780,6 +798,8 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             bg_y,
                             *container_width,
                             full_height,
+                            &mut page_shadings,
+                            &mut shading_counter,
                         );
                         if *border_radius > 0.0 {
                             content.push_str("Q\n");
@@ -804,6 +824,8 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             bg_y,
                             *container_width,
                             full_height,
+                            &mut page_shadings,
+                            &mut shading_counter,
                         );
                         if *border_radius > 0.0 {
                             content.push_str("Q\n");
@@ -910,6 +932,8 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                                 bg_y,
                                 cell.width,
                                 *row_height,
+                                &mut page_shadings,
+                                &mut shading_counter,
                             );
                             if cell.border_radius > 0.0 {
                                 content.push_str("Q\n");
@@ -934,6 +958,8 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                                 bg_y,
                                 cell.width,
                                 *row_height,
+                                &mut page_shadings,
+                                &mut shading_counter,
                             );
                             if cell.border_radius > 0.0 {
                                 content.push_str("Q\n");
@@ -1096,6 +1122,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
             annotations,
             page_images,
             page_ext_gstates,
+            page_shadings,
         );
     }
 
@@ -1123,12 +1150,18 @@ fn render_cell_text(
     custom_fonts: &HashMap<String, TtfFont>,
 ) {
     let cell_inner_w = col_width - cell.padding_left - cell.padding_right;
-    // Vertical centering: offset text so it's centered within the row height
-    // (matches browser default vertical-align: middle for table cells).
+    // Vertical centering: position text so glyphs are visually centered
+    // within the row height (matches browser vertical-align: middle).
+    // For single-line cells: place baseline so the visual center of the
+    // glyphs (≈ baseline + 0.35 * font_size) is at the row's vertical center.
     let text_h: f32 = cell.lines.iter().map(|l| l.height).sum();
-    let cell_content_h = cell.padding_top + text_h + cell.padding_bottom;
-    let v_offset = ((row_height - cell_content_h) / 2.0).max(0.0);
-    let mut text_y = row_y - cell.padding_top - v_offset;
+    let font_size = cell
+        .lines
+        .first()
+        .and_then(|l| l.runs.first())
+        .map_or(12.0, |r| r.font_size);
+    let visual_center = row_y - row_height / 2.0;
+    let mut text_y = visual_center + text_h / 2.0 + font_size * 0.15;
     for line in &cell.lines {
         text_y -= line.height;
         let text_content: String = line.runs.iter().map(|r| r.text.as_str()).collect();
@@ -1299,42 +1332,13 @@ fn merge_runs(runs: &[TextRun]) -> Vec<TextRun> {
     merged
 }
 
-/// Interpolate between two colors at a given fraction t in [0, 1].
-fn interpolate_color(c1: &GradientStop, c2: &GradientStop, t: f32) -> (f32, f32, f32) {
-    let frac = if (c2.position - c1.position).abs() < 1e-6 {
-        0.0
-    } else {
-        ((t - c1.position) / (c2.position - c1.position)).clamp(0.0, 1.0)
-    };
-    let (r1, g1, b1) = c1.color.to_f32_rgb();
-    let (r2, g2, b2) = c2.color.to_f32_rgb();
-    (
-        r1 + (r2 - r1) * frac,
-        g1 + (g2 - g1) * frac,
-        b1 + (b2 - b1) * frac,
-    )
-}
-
-/// Get the interpolated color at position t from the gradient stops.
-fn color_at_position(stops: &[GradientStop], t: f32) -> (f32, f32, f32) {
-    if stops.is_empty() {
-        return (0.0, 0.0, 0.0);
-    }
-    if t <= stops[0].position {
-        return stops[0].color.to_f32_rgb();
-    }
-    if t >= stops[stops.len() - 1].position {
-        return stops[stops.len() - 1].color.to_f32_rgb();
-    }
-    for i in 0..stops.len() - 1 {
-        if t >= stops[i].position && t <= stops[i + 1].position {
-            return interpolate_color(&stops[i], &stops[i + 1], t);
-        }
-    }
-    stops[stops.len() - 1].color.to_f32_rgb()
-}
-
-/// Render a linear gradient as a series of thin filled rectangles.
+/// Render a linear gradient using a native PDF Shading Dictionary reference.
+///
+/// Instead of drawing 200 thin rectangles (which produces banding), this emits
+/// a `sh` operator referencing a shading dictionary that the PDF viewer will
+/// interpolate smoothly. The shading entry is collected and later written as a
+/// PDF object in `finish_to_writer`.
+#[allow(clippy::too_many_arguments)]
 fn render_linear_gradient(
     content: &mut String,
     gradient: &LinearGradient,
@@ -1342,69 +1346,58 @@ fn render_linear_gradient(
     y: f32,
     width: f32,
     height: f32,
+    shadings: &mut Vec<ShadingEntry>,
+    shading_counter: &mut usize,
 ) {
-    let num_strips = 200;
+    let name = format!("SH{}", *shading_counter);
+    *shading_counter += 1;
+
+    // CSS angle convention: 0° = to top (bottom-to-top), 90° = to right, 180° = to bottom
+    // In PDF coordinate space, y-axis is bottom-up, so:
+    //   CSS 0° (to top) => PDF line from bottom center to top center
+    //   CSS 90° (to right) => PDF line from left center to right center
+    //   CSS 180° (to bottom) => PDF line from top center to bottom center
     let angle_rad = gradient.angle * std::f32::consts::PI / 180.0;
-    let cos_a = angle_rad.cos();
     let sin_a = angle_rad.sin();
+    let cos_a = angle_rad.cos();
 
-    let is_horizontal = (sin_a.abs() - 1.0).abs() < 0.01;
-    let is_vertical = (cos_a.abs() - 1.0).abs() < 0.01;
+    // Gradient line: start and end points
+    // CSS: 0deg = to top, so direction vector is (sin(angle), -cos(angle)) in CSS coords
+    // In PDF coords (y flipped): direction is (sin(angle), cos(angle))
+    let cx = x + width / 2.0;
+    let cy = y + height / 2.0;
+    // Half-length of the gradient line along the direction
+    let half_len = (width * sin_a.abs() + height * cos_a.abs()) / 2.0;
+    let dx = sin_a * half_len;
+    let dy = cos_a * half_len;
 
-    if is_horizontal {
-        let reversed = sin_a < 0.0;
-        let strip_w = width / num_strips as f32;
-        for i in 0..num_strips {
-            let t = if reversed {
-                1.0 - (i as f32 + 0.5) / num_strips as f32
-            } else {
-                (i as f32 + 0.5) / num_strips as f32
-            };
-            let (r, g, b) = color_at_position(&gradient.stops, t);
-            let sx = x + i as f32 * strip_w;
-            content.push_str(&format!(
-                "{r} {g} {b} rg\n{sx} {y} {sw} {h} re\nf\n",
-                sw = strip_w,
-                h = height,
-            ));
-        }
-    } else if is_vertical {
-        let reversed = cos_a > 0.0;
-        let strip_h = height / num_strips as f32;
-        for i in 0..num_strips {
-            let t = if reversed {
-                (i as f32 + 0.5) / num_strips as f32
-            } else {
-                1.0 - (i as f32 + 0.5) / num_strips as f32
-            };
-            let (r, g, b) = color_at_position(&gradient.stops, t);
-            let sy = y + i as f32 * strip_h;
-            content.push_str(&format!(
-                "{r} {g} {b} rg\n{x} {sy} {w} {sh} re\nf\n",
-                w = width,
-                sh = strip_h,
-            ));
-        }
-    } else {
-        let strip_w = width / num_strips as f32;
-        for i in 0..num_strips {
-            let frac = (i as f32 + 0.5) / num_strips as f32;
-            let t = frac * sin_a.abs()
-                + (1.0 - frac) * (1.0 - cos_a.abs()) * 0.5
-                + frac * (1.0 - cos_a.abs()) * 0.5;
-            let t = t.clamp(0.0, 1.0);
-            let (r, g, b) = color_at_position(&gradient.stops, t);
-            let sx = x + i as f32 * strip_w;
-            content.push_str(&format!(
-                "{r} {g} {b} rg\n{sx} {y} {sw} {h} re\nf\n",
-                sw = strip_w,
-                h = height,
-            ));
-        }
-    }
+    let x0 = cx - dx;
+    let y0 = cy - dy;
+    let x1 = cx + dx;
+    let y1 = cy + dy;
+
+    let stops: Vec<(f32, (f32, f32, f32))> = gradient
+        .stops
+        .iter()
+        .map(|s| (s.position, s.color.to_f32_rgb()))
+        .collect();
+
+    shadings.push(ShadingEntry {
+        name: name.clone(),
+        shading_type: 2, // Axial
+        coords: [x0, y0, x1, y1, 0.0, 0.0],
+        stops,
+    });
+
+    // Clip to the gradient area and paint with shading
+    content.push_str("q\n");
+    content.push_str(&format!("{x} {y} {width} {height} re W n\n"));
+    content.push_str(&format!("/{name} sh\n"));
+    content.push_str("Q\n");
 }
 
-/// Render a radial gradient as concentric filled circles from outside to inside.
+/// Render a radial gradient using a native PDF Shading Dictionary reference.
+#[allow(clippy::too_many_arguments)]
 fn render_radial_gradient(
     content: &mut String,
     gradient: &RadialGradient,
@@ -1412,62 +1405,81 @@ fn render_radial_gradient(
     y: f32,
     width: f32,
     height: f32,
+    shadings: &mut Vec<ShadingEntry>,
+    shading_counter: &mut usize,
 ) {
-    let num_rings = 200;
+    let name = format!("SH{}", *shading_counter);
+    *shading_counter += 1;
+
     let cx = x + width / 2.0;
     let cy = y + height / 2.0;
-    let max_radius = (width.max(height)) / 2.0;
+    let max_radius = width.max(height) / 2.0;
 
-    for i in 0..num_rings {
-        let t = 1.0 - i as f32 / num_rings as f32;
-        let radius = max_radius * t;
-        let (r, g, b) = color_at_position(&gradient.stops, t);
+    let stops: Vec<(f32, (f32, f32, f32))> = gradient
+        .stops
+        .iter()
+        .map(|s| (s.position, s.color.to_f32_rgb()))
+        .collect();
 
-        if radius < 0.5 {
-            continue;
-        }
+    shadings.push(ShadingEntry {
+        name: name.clone(),
+        shading_type: 3, // Radial
+        coords: [cx, cy, 0.0, cx, cy, max_radius],
+        stops,
+    });
 
-        let k = 0.552_284_8_f32 * radius;
-        content.push_str(&format!("{r} {g} {b} rg\n"));
-        content.push_str(&format!("{} {} m\n", cx + radius, cy));
-        content.push_str(&format!(
-            "{} {} {} {} {} {} c\n",
-            cx + radius,
-            cy + k,
-            cx + k,
-            cy + radius,
-            cx,
-            cy + radius
-        ));
-        content.push_str(&format!(
-            "{} {} {} {} {} {} c\n",
-            cx - k,
-            cy + radius,
-            cx - radius,
-            cy + k,
-            cx - radius,
-            cy
-        ));
-        content.push_str(&format!(
-            "{} {} {} {} {} {} c\n",
-            cx - radius,
-            cy - k,
-            cx - k,
-            cy - radius,
-            cx,
-            cy - radius
-        ));
-        content.push_str(&format!(
-            "{} {} {} {} {} {} c\n",
-            cx + k,
-            cy - radius,
-            cx + radius,
-            cy - k,
-            cx + radius,
-            cy
-        ));
-        content.push_str("f\n");
+    // Clip to the gradient area and paint with shading
+    content.push_str("q\n");
+    content.push_str(&format!("{x} {y} {width} {height} re W n\n"));
+    content.push_str(&format!("/{name} sh\n"));
+    content.push_str("Q\n");
+}
+
+/// Build an inline PDF Function dictionary string for a gradient's color stops.
+///
+/// For 2 stops, returns a Type 2 (exponential interpolation) function.
+/// For 3+ stops, returns a Type 3 (stitching) function that chains Type 2 sub-functions.
+fn build_shading_function(stops: &[(f32, (f32, f32, f32))]) -> String {
+    if stops.len() < 2 {
+        // Fallback: single color
+        let (r, g, b) = stops.first().map(|s| s.1).unwrap_or((0.0, 0.0, 0.0));
+        return format!(
+            "<< /FunctionType 2 /Domain [0 1] /C0 [{r} {g} {b}] /C1 [{r} {g} {b}] /N 1 >>"
+        );
     }
+
+    if stops.len() == 2 {
+        let (r0, g0, b0) = stops[0].1;
+        let (r1, g1, b1) = stops[1].1;
+        return format!(
+            "<< /FunctionType 2 /Domain [0 1] /C0 [{r0} {g0} {b0}] /C1 [{r1} {g1} {b1}] /N 1 >>"
+        );
+    }
+
+    // Type 3 stitching function for 3+ stops
+    let mut functions = Vec::new();
+    let mut bounds = Vec::new();
+    let mut encode = Vec::new();
+
+    for i in 0..stops.len() - 1 {
+        let (r0, g0, b0) = stops[i].1;
+        let (r1, g1, b1) = stops[i + 1].1;
+        functions.push(format!(
+            "<< /FunctionType 2 /Domain [0 1] /C0 [{r0} {g0} {b0}] /C1 [{r1} {g1} {b1}] /N 1 >>"
+        ));
+        if i < stops.len() - 2 {
+            bounds.push(format!("{}", stops[i + 1].0));
+        }
+        encode.push("0 1".to_string());
+    }
+
+    let functions_str = functions.join(" ");
+    let bounds_str = bounds.join(" ");
+    let encode_str = encode.join(" ");
+
+    format!(
+        "<< /FunctionType 3 /Domain [0 1] /Functions [{functions_str}] /Bounds [{bounds_str}] /Encode [{encode_str}] >>"
+    )
 }
 
 /// Generate a PDF path for a rounded rectangle.
@@ -1609,6 +1621,8 @@ struct PdfWriter {
     page_images: Vec<Vec<ImageRef>>,
     /// ExtGState entries (name, opacity) grouped by page index.
     page_ext_gstates: Vec<Vec<(String, f32)>>,
+    /// Shading dictionary entries grouped by page index.
+    page_shadings: Vec<Vec<ShadingEntry>>,
     /// Custom TrueType font entries.
     custom_font_entries: Vec<CustomFontEntry>,
 }
@@ -1622,6 +1636,7 @@ impl PdfWriter {
             page_annotations: Vec::new(),
             page_images: Vec::new(),
             page_ext_gstates: Vec::new(),
+            page_shadings: Vec::new(),
             custom_font_entries: Vec::new(),
         }
     }
@@ -1729,6 +1744,7 @@ impl PdfWriter {
         pdf_name
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn add_page(
         &mut self,
         width: f32,
@@ -1737,6 +1753,7 @@ impl PdfWriter {
         annotations: Vec<LinkAnnotation>,
         images: Vec<ImageRef>,
         ext_gstates: Vec<(String, f32)>,
+        shadings: Vec<ShadingEntry>,
     ) {
         // Content stream
         let stream = content.as_bytes();
@@ -1771,6 +1788,7 @@ impl PdfWriter {
         self.page_annotations.push(annot_ids);
         self.page_images.push(images);
         self.page_ext_gstates.push(ext_gstates);
+        self.page_shadings.push(shadings);
     }
 
     fn finish_to_writer<W: std::io::Write>(self, out: &mut W) -> Result<(), IronpressError> {
@@ -1864,6 +1882,38 @@ impl PdfWriter {
             }
         }
 
+        // Add Shading objects
+        let mut shading_obj_refs: Vec<(String, usize)> = Vec::new();
+        for page_sh in &self.page_shadings {
+            for entry in page_sh {
+                let sh_id = all_objects.len() + 1;
+                let function_str = build_shading_function(&entry.stops);
+                let coords_str = if entry.shading_type == 2 {
+                    // Axial: only first 4 coords
+                    format!(
+                        "{} {} {} {}",
+                        entry.coords[0], entry.coords[1], entry.coords[2], entry.coords[3]
+                    )
+                } else {
+                    // Radial: all 6 coords
+                    format!(
+                        "{} {} {} {} {} {}",
+                        entry.coords[0],
+                        entry.coords[1],
+                        entry.coords[2],
+                        entry.coords[3],
+                        entry.coords[4],
+                        entry.coords[5]
+                    )
+                };
+                all_objects.push(format!(
+                    "{sh_id} 0 obj\n<< /ShadingType {} /ColorSpace /DeviceRGB /Coords [{coords_str}] /Function {function_str} /Extend [true true] >>\nendobj",
+                    entry.shading_type,
+                ));
+                shading_obj_refs.push((entry.name.clone(), sh_id));
+            }
+        }
+
         // Resources dictionary
         let resources_id = all_objects.len() + 1;
         let mut resource_parts = format!("/Font {font_dict_id} 0 R");
@@ -1884,6 +1934,15 @@ impl PdfWriter {
                 .collect::<Vec<_>>()
                 .join(" ");
             resource_parts.push_str(&format!(" /ExtGState << {gs_dict} >>"));
+        }
+
+        if !shading_obj_refs.is_empty() {
+            let shading_dict: String = shading_obj_refs
+                .iter()
+                .map(|(name, id)| format!("/{name} {id} 0 R"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            resource_parts.push_str(&format!(" /Shading << {shading_dict} >>"));
         }
 
         all_objects.push(format!(
@@ -2874,83 +2933,43 @@ mod tests {
     }
 
     #[test]
-    fn color_at_position_empty_stops() {
-        // Covers line 842: empty stops returns black
-        let result = color_at_position(&[], 0.5);
-        assert_eq!(result, (0.0, 0.0, 0.0));
+    fn build_shading_function_single_stop() {
+        // Single stop produces a constant-color Type 2 function
+        let stops = vec![(0.5, (1.0, 0.0, 0.0))];
+        let result = build_shading_function(&stops);
+        assert!(result.contains("/FunctionType 2"));
+        assert!(result.contains("/C0 [1 0 0]"));
+        assert!(result.contains("/C1 [1 0 0]"));
     }
 
     #[test]
-    fn color_at_position_before_first_stop() {
-        // Covers line 845: t <= first stop position
-        use crate::types::Color;
-        let stops = vec![GradientStop {
-            color: Color {
-                r: 255,
-                g: 0,
-                b: 0,
-                a: 255,
-            },
-            position: 0.5,
-        }];
-        let (r, _g, _b) = color_at_position(&stops, 0.1);
-        assert!((r - 1.0).abs() < 0.01); // returns first stop color (red)
+    fn build_shading_function_two_stops() {
+        let stops = vec![(0.0, (1.0, 0.0, 0.0)), (1.0, (0.0, 0.0, 1.0))];
+        let result = build_shading_function(&stops);
+        assert!(result.contains("/FunctionType 2"));
+        assert!(result.contains("/C0 [1 0 0]"));
+        assert!(result.contains("/C1 [0 0 1]"));
     }
 
     #[test]
-    fn color_at_position_after_last_stop() {
-        // Covers line 845 (>= last position) and line 855 (fallback)
-        use crate::types::Color;
+    fn build_shading_function_three_stops() {
         let stops = vec![
-            GradientStop {
-                color: Color {
-                    r: 255,
-                    g: 0,
-                    b: 0,
-                    a: 255,
-                },
-                position: 0.0,
-            },
-            GradientStop {
-                color: Color {
-                    r: 0,
-                    g: 0,
-                    b: 255,
-                    a: 255,
-                },
-                position: 0.5,
-            },
+            (0.0, (1.0, 0.0, 0.0)),
+            (0.5, (0.0, 1.0, 0.0)),
+            (1.0, (0.0, 0.0, 1.0)),
         ];
-        let (_r, _g, b) = color_at_position(&stops, 0.9);
-        assert!((b - 1.0).abs() < 0.01); // returns last stop color (blue)
+        let result = build_shading_function(&stops);
+        assert!(result.contains("/FunctionType 3"));
+        assert!(result.contains("/Bounds [0.5]"));
+        assert!(result.contains("/Encode [0 1 0 1]"));
     }
 
     #[test]
-    fn interpolate_color_same_position_stops() {
-        // Covers line 826: stops at same position yield frac = 0.0
-        use crate::types::Color;
-        let s1 = GradientStop {
-            color: Color {
-                r: 255,
-                g: 0,
-                b: 0,
-                a: 255,
-            },
-            position: 0.5,
-        };
-        let s2 = GradientStop {
-            color: Color {
-                r: 0,
-                g: 0,
-                b: 255,
-                a: 255,
-            },
-            position: 0.5,
-        };
-        let (r, _g, b) = interpolate_color(&s1, &s2, 0.5);
-        // frac is 0.0, so result should be s1's color
-        assert!((r - 1.0).abs() < 0.01);
-        assert!(b.abs() < 0.01);
+    fn build_shading_function_empty_stops() {
+        let stops: Vec<(f32, (f32, f32, f32))> = vec![];
+        let result = build_shading_function(&stops);
+        assert!(result.contains("/FunctionType 2"));
+        assert!(result.contains("/C0 [0 0 0]"));
     }
 
     #[test]
@@ -3210,10 +3229,12 @@ mod tests {
     }
 
     #[test]
-    fn render_radial_gradient_skips_tiny_radius() {
-        // Covers line 948: radius < 0.5 continue
+    fn render_radial_gradient_uses_shading() {
+        use crate::style::computed::GradientStop;
         use crate::types::Color;
         let mut content = String::new();
+        let mut shadings = Vec::new();
+        let mut counter = 0usize;
         let gradient = RadialGradient {
             stops: vec![
                 GradientStop {
@@ -3236,9 +3257,11 @@ mod tests {
                 },
             ],
         };
-        // Very small dimensions so many rings have radius < 0.5
-        render_radial_gradient(&mut content, &gradient, 0.0, 0.0, 1.0, 1.0);
+        render_radial_gradient(&mut content, &gradient, 0.0, 0.0, 1.0, 1.0, &mut shadings, &mut counter);
         assert!(!content.is_empty());
+        assert!(content.contains("/SH0 sh"));
+        assert_eq!(shadings.len(), 1);
+        assert_eq!(shadings[0].shading_type, 3);
     }
 
     #[test]
@@ -3416,6 +3439,32 @@ mod tests {
         assert!(
             !has_utf8_em_dash,
             "Table cell should not contain raw UTF-8 em dash bytes"
+        );
+    }
+
+    #[test]
+    fn linear_gradient_uses_shading() {
+        let html = r#"<div style="background: linear-gradient(to bottom, red, blue); height: 50pt">Gradient</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(
+            content.contains("/ShadingType 2"),
+            "Linear gradient should produce ShadingType 2 (axial)"
+        );
+    }
+
+    #[test]
+    fn radial_gradient_uses_shading_in_pdf() {
+        let html = r#"<div style="background: radial-gradient(red, blue); height: 50pt">Gradient</div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(
+            content.contains("/ShadingType 3"),
+            "Radial gradient should produce ShadingType 3"
         );
     }
 }

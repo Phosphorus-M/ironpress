@@ -4511,4 +4511,22 @@ mod tests {
 
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    #[test]
+    fn parse_border_top_property() {
+        let style = parse_inline_style("border-top: 1pt solid red");
+        match style.get("border-top") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "1pt solid red"),
+            other => panic!("Expected Keyword for border-top, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_border_bottom_property() {
+        let style = parse_inline_style("border-bottom: 2pt solid blue");
+        match style.get("border-bottom") {
+            Some(CssValue::Keyword(k)) => assert_eq!(k, "2pt solid blue"),
+            other => panic!("Expected Keyword for border-bottom, got {:?}", other),
+        }
+    }
 }
