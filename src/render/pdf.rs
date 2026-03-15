@@ -89,8 +89,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                     padding_bottom,
                     padding_left,
                     padding_right,
-                    border_width,
-                    border_color,
+                    border,
                     block_width,
                     block_height,
                     opacity,
@@ -255,6 +254,14 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             None => content_h,
                         };
                         let bg_y = block_y - total_h;
+                        // Clip to rounded rect if border-radius is set
+                        if *border_radius > 0.0 {
+                            content.push_str("q\n");
+                            content.push_str(&rounded_rect_path(
+                                block_x, bg_y, render_width, total_h, *border_radius,
+                            ));
+                            content.push_str("W n\n");
+                        }
                         render_linear_gradient(
                             &mut content,
                             gradient,
@@ -263,6 +270,9 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             render_width,
                             total_h,
                         );
+                        if *border_radius > 0.0 {
+                            content.push_str("Q\n");
+                        }
                     }
 
                     // Draw radial gradient if specified
@@ -274,6 +284,13 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             None => content_h,
                         };
                         let bg_y = block_y - total_h;
+                        if *border_radius > 0.0 {
+                            content.push_str("q\n");
+                            content.push_str(&rounded_rect_path(
+                                block_x, bg_y, render_width, total_h, *border_radius,
+                            ));
+                            content.push_str("W n\n");
+                        }
                         render_radial_gradient(
                             &mut content,
                             gradient,
@@ -282,10 +299,13 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             render_width,
                             total_h,
                         );
+                        if *border_radius > 0.0 {
+                            content.push_str("Q\n");
+                        }
                     }
 
                     // Draw border if specified
-                    if *border_width > 0.0 {
+                    if border.has_any() {
                         let text_height: f32 = lines.iter().map(|l| l.height).sum();
                         let content_h = padding_top + text_height + padding_bottom;
                         let total_h = match block_height {
@@ -293,10 +313,16 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             None => content_h,
                         };
                         let border_y = block_y - total_h;
-                        let (br, bg, bb) = border_color.unwrap_or((0.0, 0.0, 0.0));
-                        content
-                            .push_str(&format!("{br} {bg} {bb} RG\n{bw} w\n", bw = border_width,));
-                        if *border_radius > 0.0 {
+                        // Check if all sides are uniform (same width & color)
+                        let uniform = border.top.width == border.right.width
+                            && border.top.width == border.bottom.width
+                            && border.top.width == border.left.width
+                            && border.top.color == border.right.color
+                            && border.top.color == border.bottom.color
+                            && border.top.color == border.left.color;
+                        if uniform && *border_radius > 0.0 {
+                            let (br, bg, bb) = border.top.color;
+                            content.push_str(&format!("{br} {bg} {bb} RG\n{bw} w\n", bw = border.top.width));
                             content.push_str(&rounded_rect_path(
                                 block_x,
                                 border_y,
@@ -304,7 +330,10 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                                 total_h,
                                 *border_radius,
                             ));
-                        } else {
+                            content.push_str("S\n");
+                        } else if uniform {
+                            let (br, bg, bb) = border.top.color;
+                            content.push_str(&format!("{br} {bg} {bb} RG\n{bw} w\n", bw = border.top.width));
                             content.push_str(&format!(
                                 "{x} {y} {w} {h} re\n",
                                 x = block_x,
@@ -312,8 +341,37 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                                 w = render_width,
                                 h = total_h,
                             ));
+                            content.push_str("S\n");
+                        } else {
+                            let x1 = block_x;
+                            let x2 = block_x + render_width;
+                            let y_top = block_y;
+                            let y_bottom = border_y;
+                            // Top border
+                            if border.top.width > 0.0 {
+                                let (r, g, b) = border.top.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.top.width));
+                                content.push_str(&format!("{x1} {y_top} m {x2} {y_top} l S\n"));
+                            }
+                            // Right border
+                            if border.right.width > 0.0 {
+                                let (r, g, b) = border.right.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.right.width));
+                                content.push_str(&format!("{x2} {y_top} m {x2} {y_bottom} l S\n"));
+                            }
+                            // Bottom border
+                            if border.bottom.width > 0.0 {
+                                let (r, g, b) = border.bottom.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.bottom.width));
+                                content.push_str(&format!("{x1} {y_bottom} m {x2} {y_bottom} l S\n"));
+                            }
+                            // Left border
+                            if border.left.width > 0.0 {
+                                let (r, g, b) = border.left.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n", border.left.width));
+                                content.push_str(&format!("{x1} {y_top} m {x1} {y_bottom} l S\n"));
+                            }
                         }
-                        content.push_str("S\n");
                     }
 
                     // Draw outline if specified (outside the element box)
@@ -394,15 +452,35 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             content.push_str(&format!("{total_ws} Tw\n"));
                         }
 
-                        // Render each run
+                        // Merge consecutive runs with the same style so
+                        // spaces between words stay in a single PDF text
+                        // string, preventing viewers from dropping them.
+                        let merged = merge_runs(&line.runs);
                         let mut x = text_x;
-                        for run in &line.runs {
+                        for run in &merged {
                             if run.text.is_empty() {
                                 continue;
                             }
 
                             let font_name = resolve_font_name(run, custom_fonts);
                             let (r, g, b) = run.color;
+                            let run_width = estimate_run_width_with_fonts(run, custom_fonts);
+
+                            // Draw background rectangle for inline spans
+                            if let Some((br, bg, bb)) = run.background_color {
+                                let (pad_h, pad_v) = run.padding;
+                                let rect_x = x - pad_h;
+                                let rect_y = text_y - 2.0 - pad_v;
+                                let rect_w = run_width + pad_h * 2.0;
+                                let rect_h = run.font_size + 2.0 + pad_v * 2.0;
+                                content.push_str(&format!("{br} {bg} {bb} rg\n"));
+                                if run.border_radius > 0.0 {
+                                    content.push_str(&rounded_rect_path(rect_x, rect_y, rect_w, rect_h, run.border_radius));
+                                    content.push_str("\nf\n");
+                                } else {
+                                    content.push_str(&format!("{rect_x} {rect_y} {rect_w} {rect_h} re\nf\n"));
+                                }
+                            }
 
                             content.push_str(&format!("{r} {g} {b} rg\n"));
                             content.push_str("BT\n");
@@ -411,13 +489,11 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                                 size = run.font_size,
                             ));
                             content.push_str(&format!("{x} {y} Td\n", y = text_y));
-                            content.push_str(&format!(
-                                "({escaped}) Tj\n",
-                                escaped = escape_pdf_string(&run.text),
-                            ));
+                            {
+                                let encoded = encode_pdf_text(&run.text);
+                                content.push_str(&format!("({encoded}) Tj\n"));
+                            }
                             content.push_str("ET\n");
-
-                            let run_width = estimate_run_width_with_fonts(run, custom_fonts);
 
                             // Draw underline
                             if run.underline {
@@ -548,14 +624,29 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             ));
                         }
 
-                        // Draw cell border
-                        content.push_str(&format!(
-                            "0.8 0.8 0.8 RG\n0.5 w\n{x} {y} {w} {h} re\nS\n",
-                            x = cell_x,
-                            y = row_y - cell_height,
-                            w = cell_w,
-                            h = cell_height,
-                        ));
+                        // Draw cell borders when CSS specifies them.
+                        if cell.border.has_any() {
+                            let x1 = cell_x;
+                            let x2 = cell_x + cell_w;
+                            let y_top = row_y;
+                            let y_bottom = row_y - cell_height;
+                            if cell.border.top.width > 0.0 {
+                                let (r, g, b) = cell.border.top.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x2} {y_top} l S\n", cell.border.top.width));
+                            }
+                            if cell.border.right.width > 0.0 {
+                                let (r, g, b) = cell.border.right.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x2} {y_top} m {x2} {y_bottom} l S\n", cell.border.right.width));
+                            }
+                            if cell.border.bottom.width > 0.0 {
+                                let (r, g, b) = cell.border.bottom.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_bottom} m {x2} {y_bottom} l S\n", cell.border.bottom.width));
+                            }
+                            if cell.border.left.width > 0.0 {
+                                let (r, g, b) = cell.border.left.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x1} {y_bottom} l S\n", cell.border.left.width));
+                            }
+                        }
 
                         // Render cell text at the first row's y position
                         render_cell_text(&mut content, cell, cell_x, row_y, cell_w, custom_fonts);
@@ -599,6 +690,308 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             let num_gaps = col_widths.len().saturating_sub(1);
                             if num_gaps > 0 {
                                 cell_x += total_gap / num_gaps as f32;
+                            }
+                        }
+                    }
+                }
+                LayoutElement::FlexRow {
+                    cells,
+                    row_height,
+                    background_color,
+                    container_width,
+                    padding_top,
+                    padding_bottom,
+                    padding_left,
+                    padding_right: _,
+                    border,
+                    border_radius,
+                    box_shadow,
+                    background_gradient,
+                    background_radial_gradient,
+                    ..
+                } => {
+                    let row_y = page_size.height - margin.top - y_pos;
+                    let full_height =
+                        padding_top + row_height + padding_bottom + border.vertical_width();
+
+                    // Draw box shadow if present
+                    if let Some(shadow) = box_shadow {
+                        let sx = margin.left + shadow.offset_x;
+                        let sy = row_y - full_height - shadow.offset_y;
+                        let (sr, sg, sb) = shadow.color.to_f32_rgb();
+                        content.push_str(&format!(
+                            "{sr} {sg} {sb} rg\n{sx} {sy} {w} {h} re\nf\n",
+                            w = container_width,
+                            h = full_height,
+                        ));
+                    }
+
+                    // Draw container background
+                    if let Some((r, g, b)) = background_color {
+                        let bg_x = margin.left;
+                        let bg_y = row_y - full_height;
+                        content.push_str(&format!("{r} {g} {b} rg\n"));
+                        if *border_radius > 0.0 {
+                            content.push_str(&rounded_rect_path(
+                                bg_x,
+                                bg_y,
+                                *container_width,
+                                full_height,
+                                *border_radius,
+                            ));
+                            content.push_str("f\n");
+                        } else {
+                            content.push_str(&format!(
+                                "{x} {y} {w} {h} re\nf\n",
+                                x = bg_x,
+                                y = bg_y,
+                                w = container_width,
+                                h = full_height,
+                            ));
+                        }
+                    }
+
+                    // Draw container linear gradient
+                    if let Some(gradient) = background_gradient {
+                        let bg_x = margin.left;
+                        let bg_y = row_y - full_height;
+                        if *border_radius > 0.0 {
+                            content.push_str("q\n");
+                            content.push_str(&rounded_rect_path(
+                                bg_x, bg_y, *container_width, full_height, *border_radius,
+                            ));
+                            content.push_str("W n\n");
+                        }
+                        render_linear_gradient(
+                            &mut content,
+                            gradient,
+                            bg_x,
+                            bg_y,
+                            *container_width,
+                            full_height,
+                        );
+                        if *border_radius > 0.0 {
+                            content.push_str("Q\n");
+                        }
+                    }
+
+                    // Draw container radial gradient
+                    if let Some(gradient) = background_radial_gradient {
+                        let bg_x = margin.left;
+                        let bg_y = row_y - full_height;
+                        if *border_radius > 0.0 {
+                            content.push_str("q\n");
+                            content.push_str(&rounded_rect_path(
+                                bg_x, bg_y, *container_width, full_height, *border_radius,
+                            ));
+                            content.push_str("W n\n");
+                        }
+                        render_radial_gradient(
+                            &mut content,
+                            gradient,
+                            bg_x,
+                            bg_y,
+                            *container_width,
+                            full_height,
+                        );
+                        if *border_radius > 0.0 {
+                            content.push_str("Q\n");
+                        }
+                    }
+
+                    // Draw border
+                    if border.has_any() {
+                        let bx = margin.left;
+                        let by = row_y - full_height;
+                        let uniform = border.top.width == border.right.width
+                            && border.top.width == border.bottom.width
+                            && border.top.width == border.left.width
+                            && border.top.color == border.right.color
+                            && border.top.color == border.bottom.color
+                            && border.top.color == border.left.color;
+                        if uniform && *border_radius > 0.0 {
+                            let (r, g, b) = border.top.color;
+                            content.push_str(&format!("{r} {g} {b} RG\n{bw} w\n", bw = border.top.width));
+                            content.push_str(&rounded_rect_path(
+                                bx,
+                                by,
+                                *container_width,
+                                full_height,
+                                *border_radius,
+                            ));
+                            content.push_str("S\n");
+                        } else if uniform {
+                            let (r, g, b) = border.top.color;
+                            content.push_str(&format!(
+                                "{r} {g} {b} RG\n{bw} w\n{bx} {by} {w} {h} re\nS\n",
+                                bw = border.top.width,
+                                w = container_width,
+                                h = full_height,
+                            ));
+                        } else {
+                            let x1 = bx;
+                            let x2 = bx + container_width;
+                            let y_top = row_y;
+                            let y_bottom = by;
+                            if border.top.width > 0.0 {
+                                let (r, g, b) = border.top.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x2} {y_top} l S\n", border.top.width));
+                            }
+                            if border.right.width > 0.0 {
+                                let (r, g, b) = border.right.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x2} {y_top} m {x2} {y_bottom} l S\n", border.right.width));
+                            }
+                            if border.bottom.width > 0.0 {
+                                let (r, g, b) = border.bottom.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_bottom} m {x2} {y_bottom} l S\n", border.bottom.width));
+                            }
+                            if border.left.width > 0.0 {
+                                let (r, g, b) = border.left.color;
+                                content.push_str(&format!("{r} {g} {b} RG\n{} w\n{x1} {y_top} m {x1} {y_bottom} l S\n", border.left.width));
+                            }
+                        }
+                    }
+
+                    // Render each flex cell at its computed x-offset
+                    let text_area_top = row_y - border.top.width - padding_top;
+                    for cell in cells {
+                        let cell_x = margin.left + padding_left + cell.x_offset;
+                        let cell_inner_w = cell.width - cell.padding_left - cell.padding_right;
+
+                        // Draw cell background
+                        if let Some((r, g, b)) = cell.background_color {
+                            let bg_x = margin.left + padding_left + cell.x_offset;
+                            let bg_y = text_area_top - row_height;
+                            content.push_str(&format!("{r} {g} {b} rg\n"));
+                            if cell.border_radius > 0.0 {
+                                content.push_str(&rounded_rect_path(
+                                    bg_x,
+                                    bg_y,
+                                    cell.width,
+                                    *row_height,
+                                    cell.border_radius,
+                                ));
+                                content.push_str("f\n");
+                            } else {
+                                content.push_str(&format!(
+                                    "{bg_x} {bg_y} {w} {h} re\nf\n",
+                                    w = cell.width,
+                                    h = *row_height,
+                                ));
+                            }
+                        }
+
+                        // Draw cell linear gradient
+                        if let Some(gradient) = &cell.background_gradient {
+                            let bg_x = margin.left + padding_left + cell.x_offset;
+                            let bg_y = text_area_top - row_height;
+                            if cell.border_radius > 0.0 {
+                                content.push_str("q\n");
+                                content.push_str(&rounded_rect_path(
+                                    bg_x, bg_y, cell.width, *row_height, cell.border_radius,
+                                ));
+                                content.push_str("W n\n");
+                            }
+                            render_linear_gradient(
+                                &mut content,
+                                gradient,
+                                bg_x,
+                                bg_y,
+                                cell.width,
+                                *row_height,
+                            );
+                            if cell.border_radius > 0.0 {
+                                content.push_str("Q\n");
+                            }
+                        }
+
+                        // Draw cell radial gradient
+                        if let Some(gradient) = &cell.background_radial_gradient {
+                            let bg_x = margin.left + padding_left + cell.x_offset;
+                            let bg_y = text_area_top - row_height;
+                            if cell.border_radius > 0.0 {
+                                content.push_str("q\n");
+                                content.push_str(&rounded_rect_path(
+                                    bg_x, bg_y, cell.width, *row_height, cell.border_radius,
+                                ));
+                                content.push_str("W n\n");
+                            }
+                            render_radial_gradient(
+                                &mut content,
+                                gradient,
+                                bg_x,
+                                bg_y,
+                                cell.width,
+                                *row_height,
+                            );
+                            if cell.border_radius > 0.0 {
+                                content.push_str("Q\n");
+                            }
+                        }
+
+                        // Render cell text
+                        let mut text_y = text_area_top - cell.padding_top;
+                        for line in &cell.lines {
+                            text_y -= line.height;
+                            let text_content: String =
+                                line.runs.iter().map(|r| r.text.as_str()).collect();
+                            if text_content.is_empty() {
+                                continue;
+                            }
+                            let merged = merge_runs(&line.runs);
+                            // Calculate line width for text-align
+                            let line_width: f32 = merged
+                                .iter()
+                                .map(|r| estimate_run_width_with_fonts(r, custom_fonts))
+                                .sum();
+                            let text_x = match cell.text_align {
+                                TextAlign::Right => {
+                                    cell_x
+                                        + cell.padding_left
+                                        + (cell_inner_w - line_width).max(0.0)
+                                }
+                                TextAlign::Center => {
+                                    cell_x
+                                        + cell.padding_left
+                                        + ((cell_inner_w - line_width) / 2.0).max(0.0)
+                                }
+                                _ => cell_x + cell.padding_left,
+                            };
+                            let mut x = text_x;
+                            for run in &merged {
+                                if run.text.is_empty() {
+                                    continue;
+                                }
+                                let font_name = resolve_font_name(run, custom_fonts);
+                                let (r, g, b) = run.color;
+                                let rw = estimate_run_width_with_fonts(run, custom_fonts);
+
+                                // Draw background rectangle for inline spans
+                                if let Some((br, bgc, bb)) = run.background_color {
+                                    let (pad_h, pad_v) = run.padding;
+                                    let rx = x - pad_h;
+                                    let ry = text_y - 2.0 - pad_v;
+                                    let rw2 = rw + pad_h * 2.0;
+                                    let rh = run.font_size + 2.0 + pad_v * 2.0;
+                                    content.push_str(&format!("{br} {bgc} {bb} rg\n"));
+                                    if run.border_radius > 0.0 {
+                                        content.push_str(&rounded_rect_path(rx, ry, rw2, rh, run.border_radius));
+                                        content.push_str("\nf\n");
+                                    } else {
+                                        content.push_str(&format!("{rx} {ry} {rw2} {rh} re\nf\n"));
+                                    }
+                                }
+
+                                content.push_str(&format!("{r} {g} {b} rg\n"));
+                                content.push_str("BT\n");
+                                content.push_str(&format!("/{font_name} {} Tf\n", run.font_size));
+                                content.push_str(&format!("{x} {y} Td\n", y = text_y));
+                                {
+                                    let encoded = encode_pdf_text(&run.text);
+                                    content.push_str(&format!("({encoded}) Tj\n"));
+                                }
+                                content.push_str("ET\n");
+                                x += rw;
                             }
                         }
                     }
@@ -707,9 +1100,10 @@ fn render_cell_text(
     cell: &TableCell,
     cell_x: f32,
     row_y: f32,
-    _col_width: f32,
+    col_width: f32,
     custom_fonts: &HashMap<String, TtfFont>,
 ) {
+    let cell_inner_w = col_width - cell.padding_left - cell.padding_right;
     let mut text_y = row_y - cell.padding_top;
     for line in &cell.lines {
         text_y -= line.height;
@@ -717,24 +1111,53 @@ fn render_cell_text(
         if text_content.is_empty() {
             continue;
         }
-        let text_x = cell_x + cell.padding_left;
+        let merged = merge_runs(&line.runs);
+        let line_width: f32 = merged
+            .iter()
+            .map(|r| estimate_run_width_with_fonts(r, custom_fonts))
+            .sum();
+        let text_x = match cell.text_align {
+            TextAlign::Right => cell_x + cell.padding_left + (cell_inner_w - line_width).max(0.0),
+            TextAlign::Center => {
+                cell_x + cell.padding_left + ((cell_inner_w - line_width) / 2.0).max(0.0)
+            }
+            _ => cell_x + cell.padding_left,
+        };
         let mut x = text_x;
-        for run in &line.runs {
+        for run in &merged {
             if run.text.is_empty() {
                 continue;
             }
             let font_name = resolve_font_name(run, custom_fonts);
             let (r, g, b) = run.color;
+            let rw = estimate_run_width_with_fonts(run, custom_fonts);
+
+            // Draw background rectangle for inline spans
+            if let Some((br, bgc, bb)) = run.background_color {
+                let (pad_h, pad_v) = run.padding;
+                let rx = x - pad_h;
+                let ry = text_y - 2.0 - pad_v;
+                let rw2 = rw + pad_h * 2.0;
+                let rh = run.font_size + 2.0 + pad_v * 2.0;
+                content.push_str(&format!("{br} {bgc} {bb} rg\n"));
+                if run.border_radius > 0.0 {
+                    content.push_str(&rounded_rect_path(rx, ry, rw2, rh, run.border_radius));
+                    content.push_str("\nf\n");
+                } else {
+                    content.push_str(&format!("{rx} {ry} {rw2} {rh} re\nf\n"));
+                }
+            }
+
             content.push_str(&format!("{r} {g} {b} rg\n"));
             content.push_str("BT\n");
             content.push_str(&format!("/{font_name} {} Tf\n", run.font_size));
             content.push_str(&format!("{x} {y} Td\n", y = text_y));
-            content.push_str(&format!(
-                "({escaped}) Tj\n",
-                escaped = escape_pdf_string(&run.text),
-            ));
+            {
+                let encoded = encode_pdf_text(&run.text);
+                content.push_str(&format!("({encoded}) Tj\n"));
+            }
             content.push_str("ET\n");
-            x += estimate_run_width_with_fonts(run, custom_fonts);
+            x += rw;
         }
     }
 }
@@ -766,15 +1189,7 @@ fn font_name_for_run(run: &TextRun) -> &str {
 }
 
 fn estimate_run_width(run: &TextRun) -> f32 {
-    let char_width_factor = match &run.font_family {
-        // Courier is monospace, each character is ~0.6 em
-        FontFamily::Courier => 0.6,
-        // Times is slightly narrower than Helvetica on average
-        FontFamily::TimesRoman => 0.48,
-        // Helvetica average character width — also used as fallback for custom
-        FontFamily::Helvetica | FontFamily::Custom(_) => 0.5,
-    };
-    run.text.len() as f32 * run.font_size * char_width_factor
+    crate::fonts::str_width(&run.text, run.font_size, &run.font_family, run.bold)
 }
 
 /// Resolve the PDF font resource name for a text run, using custom fonts if available.
@@ -805,7 +1220,12 @@ fn estimate_run_width_with_fonts(run: &TextRun, custom_fonts: &HashMap<String, T
 fn estimate_line_width_with_fonts(line: &TextLine, custom_fonts: &HashMap<String, TtfFont>) -> f32 {
     line.runs
         .iter()
-        .map(|r| estimate_run_width_with_fonts(r, custom_fonts))
+        .map(|r| {
+            let text_w = estimate_run_width_with_fonts(r, custom_fonts);
+            // Include inline padding (e.g. badge spans with horizontal padding)
+            let (pad_h, _pad_v) = r.padding;
+            text_w + pad_h * 2.0
+        })
         .sum()
 }
 
@@ -818,6 +1238,41 @@ fn sanitize_pdf_name(name: &str) -> String {
 
 fn line_text_content(line: &TextLine) -> String {
     line.runs.iter().map(|r| r.text.as_str()).collect()
+}
+
+/// Merge consecutive text runs that share the same visual properties (font,
+/// size, bold, italic, color, underline, line-through, link) into a single
+/// run.  This produces cleaner PDF output and ensures that spaces between
+/// words are part of one contiguous text string, preventing PDF viewers from
+/// dropping inter-word spaces during text extraction.
+fn merge_runs(runs: &[TextRun]) -> Vec<TextRun> {
+    let mut merged: Vec<TextRun> = Vec::new();
+    for run in runs {
+        if run.text.is_empty() {
+            continue;
+        }
+        let can_merge = if let Some(prev) = merged.last() {
+            prev.font_size == run.font_size
+                && prev.bold == run.bold
+                && prev.italic == run.italic
+                && prev.underline == run.underline
+                && prev.line_through == run.line_through
+                && prev.color == run.color
+                && prev.link_url == run.link_url
+                && prev.font_family == run.font_family
+                && prev.background_color == run.background_color
+                && prev.padding == run.padding
+                && prev.border_radius == run.border_radius
+        } else {
+            false
+        };
+        if can_merge {
+            merged.last_mut().unwrap().text.push_str(&run.text);
+        } else {
+            merged.push(run.clone());
+        }
+    }
+    merged
 }
 
 /// Interpolate between two colors at a given fraction t in [0, 1].
@@ -864,7 +1319,7 @@ fn render_linear_gradient(
     width: f32,
     height: f32,
 ) {
-    let num_strips = 50;
+    let num_strips = 200;
     let angle_rad = gradient.angle * std::f32::consts::PI / 180.0;
     let cos_a = angle_rad.cos();
     let sin_a = angle_rad.sin();
@@ -934,7 +1389,7 @@ fn render_radial_gradient(
     width: f32,
     height: f32,
 ) {
-    let num_rings = 50;
+    let num_rings = 200;
     let cx = x + width / 2.0;
     let cy = y + height / 2.0;
     let max_radius = (width.max(height)) / 2.0;
@@ -1018,6 +1473,84 @@ fn rounded_rect_path(x: f32, y: f32, w: f32, h: f32, r: f32) -> String {
         y6 = y + r - k,
         y7 = y, // bottom
     )
+}
+
+/// Convert a UTF-8 string to WinAnsi (Windows-1252) encoded bytes.
+///
+/// Standard PDF fonts (Helvetica, Times-Roman, Courier) use WinAnsi encoding,
+/// not UTF-8. Writing raw UTF-8 bytes causes multi-byte characters like em dash
+/// to appear as mojibake. This function maps Unicode code points to their
+/// WinAnsi byte equivalents.
+fn utf8_to_winansi(text: &str) -> Vec<u8> {
+    let mut result = Vec::with_capacity(text.len());
+    for ch in text.chars() {
+        let code = ch as u32;
+        match code {
+            // ASCII range maps directly
+            0x0000..=0x007F => result.push(code as u8),
+            // Non-breaking space
+            0x00A0 => result.push(0xA0),
+            // Latin-1 supplement U+00A1..U+00FF map directly
+            0x00A1..=0x00FF => result.push(code as u8),
+            // WinAnsi special mappings from the Windows-1252 range 0x80..0x9F
+            0x20AC => result.push(0x80), // Euro sign
+            0x201A => result.push(0x82), // Single low-9 quotation mark
+            0x0192 => result.push(0x83), // Latin small letter f with hook
+            0x201E => result.push(0x84), // Double low-9 quotation mark
+            0x2026 => result.push(0x85), // Horizontal ellipsis
+            0x2020 => result.push(0x86), // Dagger
+            0x2021 => result.push(0x87), // Double dagger
+            0x02C6 => result.push(0x88), // Modifier letter circumflex accent
+            0x2030 => result.push(0x89), // Per mille sign
+            0x0160 => result.push(0x8A), // Latin capital letter S with caron
+            0x2039 => result.push(0x8B), // Single left-pointing angle quotation mark
+            0x0152 => result.push(0x8C), // Latin capital ligature OE
+            0x017D => result.push(0x8E), // Latin capital letter Z with caron
+            0x2018 => result.push(0x91), // Left single quotation mark
+            0x2019 => result.push(0x92), // Right single quotation mark
+            0x201C => result.push(0x93), // Left double quotation mark
+            0x201D => result.push(0x94), // Right double quotation mark
+            0x2022 => result.push(0x95), // Bullet
+            0x2013 => result.push(0x96), // En dash
+            0x2014 => result.push(0x97), // Em dash
+            0x02DC => result.push(0x98), // Small tilde
+            0x2122 => result.push(0x99), // Trade mark sign
+            0x0161 => result.push(0x9A), // Latin small letter s with caron
+            0x203A => result.push(0x9B), // Single right-pointing angle quotation mark
+            0x0153 => result.push(0x9C), // Latin small ligature oe
+            0x017E => result.push(0x9E), // Latin small letter z with caron
+            0x0178 => result.push(0x9F), // Latin capital letter Y with diaeresis
+            // Anything else is not representable in WinAnsi — replace with '?'
+            _ => result.push(b'?'),
+        }
+    }
+    result
+}
+
+/// Encode a UTF-8 string for use in a PDF text operator (Tj).
+///
+/// Converts to WinAnsi encoding, then produces a `String` where:
+/// - ASCII printable bytes (0x20..=0x7E), except `\`, `(`, `)`, are kept as-is
+/// - `\`, `(`, `)` are escaped as `\\`, `\(`, `\)`
+/// - All other bytes (0x00..=0x1F, 0x7F..=0xFF) are written as octal escapes `\NNN`
+///
+/// The returned string is safe to embed in a PDF content stream as `(encoded) Tj`.
+fn encode_pdf_text(text: &str) -> String {
+    let winansi = utf8_to_winansi(text);
+    let mut result = String::with_capacity(winansi.len() * 2);
+    for &b in &winansi {
+        match b {
+            b'\\' => result.push_str("\\\\"),
+            b'(' => result.push_str("\\("),
+            b')' => result.push_str("\\)"),
+            0x20..=0x7E => result.push(b as char),
+            _ => {
+                // Octal escape: \NNN (3-digit, zero-padded)
+                result.push_str(&format!("\\{:03o}", b));
+            }
+        }
+    }
+    result
 }
 
 fn escape_pdf_string(s: &str) -> String {
@@ -1414,7 +1947,7 @@ impl PdfWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::engine::layout;
+    use crate::layout::engine::{layout, LayoutBorder};
     use crate::parser::html::parse_html;
 
     #[test]
@@ -1540,8 +2073,7 @@ mod tests {
         let pages = layout(&nodes, PageSize::A4, Margin::default());
         let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
         let content = String::from_utf8_lossy(&pdf);
-        // Cell borders are drawn with rectangle stroke
-        assert!(content.contains("re\nS\n"));
+        // No default cell borders — only CSS-specified borders produce strokes
         assert!(content.contains("Name"));
         assert!(content.contains("Alice"));
     }
@@ -2410,6 +2942,9 @@ mod tests {
             color: (0.0, 0.0, 0.0),
             font_family: FontFamily::Helvetica,
             link_url: None,
+            background_color: None,
+            padding: (0.0, 0.0),
+            border_radius: 0.0,
         };
         let non_empty_run = TextRun {
             text: "Hello".to_string(),
@@ -2421,6 +2956,9 @@ mod tests {
             color: (0.0, 0.0, 0.0),
             font_family: FontFamily::Helvetica,
             link_url: None,
+            background_color: None,
+            padding: (0.0, 0.0),
+            border_radius: 0.0,
         };
         let cell = TableCell {
             lines: vec![
@@ -2441,6 +2979,8 @@ mod tests {
             padding_left: 2.0,
             padding_right: 2.0,
             background_color: None,
+            border: LayoutBorder::default(),
+            text_align: TextAlign::Left,
         };
         let mut content = String::new();
         let fonts = HashMap::new();
@@ -2462,6 +3002,9 @@ mod tests {
             color: (0.0, 0.0, 0.0),
             font_family: FontFamily::Helvetica,
             link_url: None,
+            background_color: None,
+            padding: (0.0, 0.0),
+            border_radius: 0.0,
         };
         let real_run = TextRun {
             text: "Data".to_string(),
@@ -2473,6 +3016,9 @@ mod tests {
             color: (0.0, 0.0, 0.0),
             font_family: FontFamily::Helvetica,
             link_url: None,
+            background_color: None,
+            padding: (0.0, 0.0),
+            border_radius: 0.0,
         };
         let page = Page {
             elements: vec![(
@@ -2490,8 +3036,7 @@ mod tests {
                     padding_bottom: 0.0,
                     padding_left: 0.0,
                     padding_right: 0.0,
-                    border_width: 0.0,
-                    border_color: None,
+                    border: LayoutBorder::default(),
                     block_width: None,
                     block_height: None,
                     opacity: 1.0,
@@ -2541,6 +3086,9 @@ mod tests {
                                 color: (0.0, 0.0, 0.0),
                                 font_family: FontFamily::Helvetica,
                                 link_url: None,
+                                background_color: None,
+                                padding: (0.0, 0.0),
+                                border_radius: 0.0,
                             }],
                             height: 14.0,
                         }],
@@ -2552,8 +3100,7 @@ mod tests {
                         padding_bottom: 0.0,
                         padding_left: 0.0,
                         padding_right: 0.0,
-                        border_width: 0.0,
-                        border_color: None,
+                        border: LayoutBorder::default(),
                         block_width: None,
                         block_height: None,
                         opacity: 1.0,
@@ -2599,6 +3146,9 @@ mod tests {
             color: (0.0, 0.0, 0.0),
             font_family: FontFamily::Custom("MyFont".to_string()),
             link_url: None,
+            background_color: None,
+            padding: (0.0, 0.0),
+            border_radius: 0.0,
         };
         assert_eq!(font_name_for_run(&run_bi), "Helvetica-BoldOblique");
 
@@ -2612,6 +3162,9 @@ mod tests {
             color: (0.0, 0.0, 0.0),
             font_family: FontFamily::Custom("MyFont".to_string()),
             link_url: None,
+            background_color: None,
+            padding: (0.0, 0.0),
+            border_radius: 0.0,
         };
         assert_eq!(font_name_for_run(&run_b), "Helvetica-Bold");
 
@@ -2625,6 +3178,9 @@ mod tests {
             color: (0.0, 0.0, 0.0),
             font_family: FontFamily::Custom("MyFont".to_string()),
             link_url: None,
+            background_color: None,
+            padding: (0.0, 0.0),
+            border_radius: 0.0,
         };
         assert_eq!(font_name_for_run(&run_i), "Helvetica-Oblique");
     }
@@ -2659,5 +3215,183 @@ mod tests {
         // Very small dimensions so many rings have radius < 0.5
         render_radial_gradient(&mut content, &gradient, 0.0, 0.0, 1.0, 1.0);
         assert!(!content.is_empty());
+    }
+
+    #[test]
+    fn utf8_to_winansi_ascii() {
+        let input = "Hello, World! 123";
+        let result = utf8_to_winansi(input);
+        assert_eq!(result, input.as_bytes());
+    }
+
+    #[test]
+    fn utf8_to_winansi_em_dash() {
+        // "hello — world" contains U+2014 em dash which should become 0x97
+        let input = "hello \u{2014} world";
+        let result = utf8_to_winansi(input);
+        let expected: Vec<u8> = vec![
+            b'h', b'e', b'l', b'l', b'o', b' ', 0x97, b' ', b'w', b'o', b'r', b'l', b'd',
+        ];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn utf8_to_winansi_quotes() {
+        // Left/right single and double curly quotes
+        let input = "\u{2018}hello\u{2019} \u{201C}world\u{201D}";
+        let result = utf8_to_winansi(input);
+        assert_eq!(result[0], 0x91); // left single quote
+        assert_eq!(result[6], 0x92); // right single quote
+        assert_eq!(result[8], 0x93); // left double quote
+        assert_eq!(result[14], 0x94); // right double quote
+    }
+
+    #[test]
+    fn utf8_to_winansi_latin1() {
+        // e-acute (U+00E9), n-tilde (U+00F1), u-diaeresis (U+00FC)
+        let input = "\u{00E9}\u{00F1}\u{00FC}";
+        let result = utf8_to_winansi(input);
+        assert_eq!(result, vec![0xE9, 0xF1, 0xFC]);
+    }
+
+    #[test]
+    fn utf8_to_winansi_unknown() {
+        // Chinese character and emoji should be replaced with '?'
+        let input = "\u{4E16}\u{1F600}";
+        let result = utf8_to_winansi(input);
+        assert_eq!(result, vec![b'?', b'?']);
+    }
+
+    #[test]
+    fn utf8_to_winansi_en_dash_bullet_ellipsis_euro_trademark() {
+        assert_eq!(utf8_to_winansi("\u{2013}"), vec![0x96]); // en dash
+        assert_eq!(utf8_to_winansi("\u{2022}"), vec![0x95]); // bullet
+        assert_eq!(utf8_to_winansi("\u{2026}"), vec![0x85]); // ellipsis
+        assert_eq!(utf8_to_winansi("\u{20AC}"), vec![0x80]); // euro
+        assert_eq!(utf8_to_winansi("\u{2122}"), vec![0x99]); // trademark
+    }
+
+    #[test]
+    fn encode_pdf_text_special_chars() {
+        assert_eq!(encode_pdf_text("hello"), "hello");
+        assert_eq!(encode_pdf_text("(test)"), "\\(test\\)");
+        assert_eq!(encode_pdf_text("back\\slash"), "back\\\\slash");
+    }
+
+    #[test]
+    fn encode_pdf_text_em_dash() {
+        let encoded = encode_pdf_text("hello \u{2014} world");
+        // 0x97 = 151 decimal = 227 octal; em dash should be \227
+        assert_eq!(encoded, "hello \\227 world");
+    }
+
+    #[test]
+    fn encode_pdf_text_em_dash_in_pdf_bytes() {
+        // Verify that rendering em dash produces correct octal escape in PDF
+        // and does NOT produce UTF-8 bytes or mojibake
+        let html = "<p>hello \u{2014} world</p>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+
+        // The PDF content stream should contain the octal escape \227
+        assert!(
+            pdf_str.contains("\\227"),
+            "PDF should contain octal escape \\227 for em dash"
+        );
+
+        // The raw UTF-8 bytes for em dash (0xE2 0x80 0x94) should NOT appear
+        let has_utf8_em_dash = pdf.windows(3).any(|w| w == [0xE2, 0x80, 0x94]);
+        assert!(
+            !has_utf8_em_dash,
+            "PDF should not contain raw UTF-8 bytes for em dash"
+        );
+
+        // The mojibake pattern should not appear
+        let has_mojibake = pdf.windows(2).any(|w| w == [0xC3, 0xA2]);
+        assert!(!has_mojibake, "PDF should not contain mojibake bytes");
+    }
+
+    #[test]
+    fn integration_em_dash_no_mojibake_in_pdf() {
+        // Render HTML with em dash and verify the raw UTF-8 mojibake bytes
+        // "\xC3\xA2\xC2\x80\xC2\x94" (the UTF-8 encoding of U+2014 read as
+        // latin1) do NOT appear in the output.
+        let html = "<p>hello \u{2014} world</p>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+
+        // The mojibake sequence for em dash in UTF-8 misinterpreted as latin1
+        // is bytes [0xC3, 0xA2]. This must NOT appear in the PDF.
+        let has_mojibake = pdf.windows(2).any(|w| w == [0xC3, 0xA2]);
+        assert!(
+            !has_mojibake,
+            "PDF output contains UTF-8 mojibake for em dash"
+        );
+
+        // The octal escape sequence \227 (for byte 0x97) should appear in the PDF
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        assert!(
+            pdf_str.contains("\\227"),
+            "PDF output should contain octal escape \\227 for WinAnsi em dash"
+        );
+    }
+
+    #[test]
+    fn total_row_bold_from_descendant_selector() {
+        use crate::parser::css::parse_stylesheet;
+        let html = r#"<html><head><style>
+            .total-row td { font-weight: bold; font-size: 12pt; }
+        </style></head><body>
+        <table>
+            <tr><td>Item</td><td>$100</td></tr>
+            <tr class="total-row"><td>Total</td><td>$100</td></tr>
+        </table>
+        </body></html>"#;
+        let result = crate::parser::html::parse_html_with_styles(html).unwrap();
+        let mut rules = Vec::new();
+        for css in &result.stylesheets {
+            rules.extend(parse_stylesheet(css));
+        }
+        let pages = crate::layout::engine::layout_with_rules(
+            &result.nodes,
+            PageSize::A4,
+            Margin::default(),
+            &rules,
+        );
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // The total row cells should use Helvetica-Bold
+        assert!(
+            pdf_str.contains("/Helvetica-Bold 12 Tf"),
+            "Total row should use Helvetica-Bold at 12pt, PDF content:\n{}",
+            pdf_str
+                .lines()
+                .filter(|l| l.contains("Helvetica"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+
+    #[test]
+    fn table_cell_em_dash_encoded_correctly() {
+        let html = r#"<table><tr><td>HTML/CSS to PDF conversion — Enterprise</td></tr></table>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let pdf_str = String::from_utf8_lossy(&pdf);
+        // Em dash in table cell should be encoded as octal \227
+        assert!(
+            pdf_str.contains("\\227"),
+            "Table cell em dash should be encoded as \\227"
+        );
+        // No raw UTF-8 bytes for em dash
+        let has_utf8_em_dash = pdf.windows(3).any(|w| w == [0xE2, 0x80, 0x94]);
+        assert!(
+            !has_utf8_em_dash,
+            "Table cell should not contain raw UTF-8 em dash bytes"
+        );
     }
 }

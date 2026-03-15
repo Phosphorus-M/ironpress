@@ -10,43 +10,43 @@ pub fn default_style(tag: HtmlTag) -> StyleMap {
         HtmlTag::H1 => {
             style.set("font-size", CssValue::Length(24.0));
             style.set("font-weight", CssValue::Keyword("bold".into()));
-            style.set("margin-top", CssValue::Length(12.0));
-            style.set("margin-bottom", CssValue::Length(12.0));
+            style.set("margin-top", CssValue::Length(8.0));
+            style.set("margin-bottom", CssValue::Length(6.0));
         }
         HtmlTag::H2 => {
             style.set("font-size", CssValue::Length(20.0));
             style.set("font-weight", CssValue::Keyword("bold".into()));
-            style.set("margin-top", CssValue::Length(10.0));
-            style.set("margin-bottom", CssValue::Length(10.0));
+            style.set("margin-top", CssValue::Length(6.0));
+            style.set("margin-bottom", CssValue::Length(4.0));
         }
         HtmlTag::H3 => {
             style.set("font-size", CssValue::Length(16.0));
             style.set("font-weight", CssValue::Keyword("bold".into()));
-            style.set("margin-top", CssValue::Length(8.0));
-            style.set("margin-bottom", CssValue::Length(8.0));
+            style.set("margin-top", CssValue::Length(4.0));
+            style.set("margin-bottom", CssValue::Length(4.0));
         }
         HtmlTag::H4 => {
             style.set("font-size", CssValue::Length(14.0));
             style.set("font-weight", CssValue::Keyword("bold".into()));
-            style.set("margin-top", CssValue::Length(6.0));
-            style.set("margin-bottom", CssValue::Length(6.0));
+            style.set("margin-top", CssValue::Length(4.0));
+            style.set("margin-bottom", CssValue::Length(2.0));
         }
         HtmlTag::H5 => {
             style.set("font-size", CssValue::Length(12.0));
             style.set("font-weight", CssValue::Keyword("bold".into()));
-            style.set("margin-top", CssValue::Length(4.0));
-            style.set("margin-bottom", CssValue::Length(4.0));
+            style.set("margin-top", CssValue::Length(2.0));
+            style.set("margin-bottom", CssValue::Length(2.0));
         }
         HtmlTag::H6 => {
             style.set("font-size", CssValue::Length(10.0));
             style.set("font-weight", CssValue::Keyword("bold".into()));
-            style.set("margin-top", CssValue::Length(4.0));
-            style.set("margin-bottom", CssValue::Length(4.0));
+            style.set("margin-top", CssValue::Length(2.0));
+            style.set("margin-bottom", CssValue::Length(2.0));
         }
         HtmlTag::P => {
-            style.set("font-size", CssValue::Length(12.0));
+            // No default font-size — <p> inherits from parent (matches browser UA behavior)
             style.set("margin-top", CssValue::Length(0.0));
-            style.set("margin-bottom", CssValue::Length(8.0));
+            style.set("margin-bottom", CssValue::Length(4.0));
         }
         HtmlTag::Strong | HtmlTag::B => {
             style.set("font-weight", CssValue::Keyword("bold".into()));
