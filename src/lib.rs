@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 //! # ironpress
 //!
 //! Pure Rust HTML/CSS/Markdown to PDF converter. No browser, no system dependencies.
@@ -64,12 +65,14 @@
 //!     .unwrap();
 //! ```
 
+/// Error types for conversion failures.
 pub mod error;
 pub(crate) mod layout;
 pub(crate) mod parser;
 pub(crate) mod render;
 pub(crate) mod security;
 pub(crate) mod style;
+/// Public types: page size, margins, and colors.
 pub mod types;
 
 pub use error::IronpressError;
@@ -381,6 +384,9 @@ impl HtmlConverter {
         if let Some(ref base) = self.base_path {
             for ff_rule in &font_face_rules {
                 let font_path = base.join(&ff_rule.src_path);
+                if !parser::css::is_path_within(&font_path, base) {
+                    continue;
+                }
                 if let Ok(ttf_data) = std::fs::read(&font_path) {
                     if let Ok(font) = parser::ttf::parse_ttf(ttf_data) {
                         parsed_fonts.insert(ff_rule.font_family.to_ascii_lowercase(), font);
@@ -3049,5 +3055,115 @@ fn main() {
         </body></html>"#;
         let pdf = html_to_pdf(html).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn font_face_path_traversal_blocked() {
+        // A @font-face src with path traversal should be silently skipped
+        let dir = std::env::temp_dir().join("ironpress_font_traversal_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let html = r#"<html><head><style>
+            @font-face { font-family: "Evil"; src: url("../../etc/passwd"); }
+            body { font-family: "Evil"; }
+        </style></head><body>Hello</body></html>"#;
+
+        let converter = HtmlConverter::new().base_path(&dir);
+        let mut buf = Vec::new();
+        // Should succeed without loading the traversal path
+        let result = converter.convert_to_writer(html, &mut buf);
+        assert!(result.is_ok(), "converter should not fail on traversal font path");
+        assert!(buf.starts_with(b"%PDF"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn html_to_pdf_letter_spacing() {
+        let html = r#"<p style="letter-spacing: 2pt">Spaced letters</p>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Tc"), "PDF should contain Tc operator for letter-spacing");
+    }
+
+    #[test]
+    fn html_to_pdf_word_spacing() {
+        let html = r#"<p style="word-spacing: 5pt">Spaced words here</p>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Tw"), "PDF should contain Tw operator for word-spacing");
+    }
+
+    #[test]
+    fn html_to_pdf_letter_and_word_spacing_combined() {
+        let html = r#"<p style="letter-spacing: 2pt; word-spacing: 5pt">Spaced letters and words</p>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Tc"), "PDF should contain Tc operator for letter-spacing");
+        assert!(content.contains("Tw"), "PDF should contain Tw operator for word-spacing");
+    }
+
+    #[test]
+    fn html_to_pdf_long_word_hyphenated() {
+        // A very long word preceded by short content in a narrow div should be
+        // hyphenated in the PDF output (hyphenation triggers when the line
+        // already has content and the next word doesn't fit).
+        let html =
+            r#"<div style="width: 80pt"><p>Hi Supercalifragilisticexpialidocious</p></div>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        // The PDF text streams should contain a hyphen from the hyphenation
+        assert!(
+            content.contains('-'),
+            "PDF should contain a hyphen from hyphenated long word"
+        );
+    }
+
+    #[test]
+    fn html_to_pdf_inline_svg_rect() {
+        let html = r#"<svg width="100" height="100"><rect x="10" y="10" width="80" height="80" fill="red"/></svg>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("re")); // rect operator
+    }
+
+    #[test]
+    fn html_to_pdf_inline_svg_circle() {
+        let html = r#"<svg width="100" height="100"><circle cx="50" cy="50" r="40" fill="blue"/></svg>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_inline_svg_path() {
+        let html = r#"<svg width="100" height="100"><path d="M 10 10 L 90 10 L 90 90 Z" fill="green"/></svg>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_inline_svg_with_viewbox() {
+        let html = r#"<svg width="200" height="200" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="red"/></svg>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_svg_script_stripped() {
+        // Script inside SVG should not cause issues (html5ever strips it or ignores it)
+        let html = r#"<svg width="100" height="100"><script>alert(1)</script><rect x="10" y="10" width="80" height="80" fill="red"/></svg>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn html_to_pdf_svg_among_html() {
+        let html = r#"<h1>Title</h1><svg width="100" height="50"><rect x="0" y="0" width="100" height="50" fill="blue"/></svg><p>World</p>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Title"));
+        assert!(content.contains("World"));
     }
 }

@@ -106,6 +106,8 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                     border_radius,
                     outline_width,
                     outline_color,
+                    letter_spacing,
+                    word_spacing: css_word_spacing,
                     ..
                 } => {
                     // Skip rendering if visibility: hidden (but space is preserved)
@@ -362,7 +364,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         let is_last_line = line_idx == line_count - 1;
 
                         // Calculate word spacing for justified text
-                        let word_spacing = if *text_align == TextAlign::Justify && !is_last_line {
+                        let justify_ws = if *text_align == TextAlign::Justify && !is_last_line {
                             let content_width = render_width - padding_left - padding_right;
                             let remaining = content_width - line_width;
                             let space_count = line_text.matches(' ').count();
@@ -374,6 +376,7 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         } else {
                             0.0
                         };
+                        let total_ws = justify_ws + *css_word_spacing;
 
                         let text_x = match text_align {
                             TextAlign::Left | TextAlign::Justify => block_x + padding_left,
@@ -381,9 +384,14 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             TextAlign::Right => block_x + render_width - padding_right - line_width,
                         };
 
-                        // Set word spacing for justified lines
-                        if word_spacing > 0.0 {
-                            content.push_str(&format!("{word_spacing} Tw\n"));
+                        // Set letter spacing (CSS letter-spacing)
+                        if *letter_spacing > 0.0 {
+                            content.push_str(&format!("{letter_spacing} Tc\n"));
+                        }
+
+                        // Set word spacing (justify + CSS word-spacing)
+                        if total_ws > 0.0 {
+                            content.push_str(&format!("{total_ws} Tw\n"));
                         }
 
                         // Render each run
@@ -443,8 +451,13 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                             x += run_width;
                         }
 
-                        // Reset word spacing after justified line
-                        if word_spacing > 0.0 {
+                        // Reset letter spacing after line
+                        if *letter_spacing > 0.0 {
+                            content.push_str("0 Tc\n");
+                        }
+
+                        // Reset word spacing after line
+                        if total_ws > 0.0 {
                             content.push_str("0 Tw\n");
                         }
                     }
@@ -621,6 +634,40 @@ fn render_pdf_to_writer_with_fonts<W: std::io::Write>(
                         name: img_name,
                         obj_id: img_obj_id,
                     });
+                }
+                LayoutElement::Svg {
+                    tree,
+                    width,
+                    height,
+                    ..
+                } => {
+                    let svg_x = margin.left;
+                    // PDF y-axis is bottom-up, SVG is top-down
+                    let svg_y = page_size.height - margin.top - y_pos - height;
+
+                    content.push_str("q\n");
+                    // Position on page and flip y-axis for SVG coordinates
+                    content.push_str(&format!(
+                        "1 0 0 -1 {} {} cm\n",
+                        svg_x,
+                        svg_y + height
+                    ));
+
+                    // Apply viewBox scaling if present
+                    if let Some(ref vb) = tree.view_box {
+                        if vb.width > 0.0 && vb.height > 0.0 {
+                            let sx = width / vb.width;
+                            let sy = height / vb.height;
+                            content.push_str(&format!(
+                                "{sx} 0 0 {sy} {} {} cm\n",
+                                -vb.min_x * sx,
+                                -vb.min_y * sy
+                            ));
+                        }
+                    }
+
+                    crate::render::svg_to_pdf::render_svg_tree(tree, &mut content);
+                    content.push_str("Q\n");
                 }
                 LayoutElement::HorizontalRule { .. } => {
                     let rule_y = page_size.height - margin.top - y_pos;

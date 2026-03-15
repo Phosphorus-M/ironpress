@@ -145,6 +145,7 @@ Supported Markdown syntax: headings (`#` to `######`), bold (`**`), italic (`*`)
 | Text decoration | `<del>`, `<s>` (strikethrough), `<ins>` (underline), `<mark>` (highlight) |
 | Links | `<a>` with clickable PDF link annotations |
 | Images | `<img>` with JPEG and PNG support (data URIs and local files) |
+| SVG | Inline `<svg>` with `<rect>`, `<circle>`, `<ellipse>`, `<line>`, `<polyline>`, `<polygon>`, `<path>`, `<g>`, transforms, viewBox |
 | Line breaks | `<br>`, `<hr>` |
 | Lists | `<ul>`, `<ol>` with nested support, `<li>`, `<dl>`, `<dt>`, `<dd>` |
 | Tables | `<table>`, `<thead>`, `<tbody>`, `<tfoot>`, `<tr>`, `<td>`, `<th>`, `<caption>` with colspan, rowspan, auto-sized columns, and cell borders |
@@ -350,7 +351,7 @@ HtmlConverter::new()
 Enable the `async` feature for async file I/O:
 
 ```toml
-ironpress = { version = "0.7", features = ["async"] }
+ironpress = { version = "0.8", features = ["async"] }
 ```
 
 ```rust
@@ -391,11 +392,32 @@ For Markdown input, a built-in parser converts Markdown to HTML first (no extern
 
 ironpress focuses on being the best HTML/CSS/Markdown to PDF engine in Rust. Other input formats (SVG, DOCX, EPUB, CSV) will be available as separate crates in the ironpress ecosystem.
 
-Remaining work:
+### Roadmap to v1.0
 
-- [ ] Hyphenation and advanced text shaping
+**Security hardening**
+
+- [x] Path traversal protection — canonicalize and sandbox `@import` / `@font-face` paths within `base_dir`
+- [x] TTF parser hardening — validate `units_per_em > 0`, use checked arithmetic, reject malformed fonts
+- [x] PNG decompression bomb protection — cap accumulated IDAT chunk size (50 MB)
+- [x] CSS size limit — cap cumulative `@import` payload to prevent OOM (10 MB)
+- [x] Inline SVG rendering with dedicated SVG sanitizer (strip `<script>`, `foreignObject`, `use href=`, event handlers)
+
+**API polish**
+
+- [x] Derive `PartialEq` on public types (`PageSize`, `Margin`)
+- [x] `#![warn(missing_docs)]` — doc comments on all public items
+- [x] Cargo.toml metadata — `readme`, `documentation`, `exclude`
+
+**Rendering**
+
+- [x] Hyphenation for long words in narrow containers
+- [x] `letter-spacing` and `word-spacing` applied in PDF output (`Tc` / `Tw` operators)
+
+**Post-v1**
+
 - [ ] WASM support for browser-side PDF generation
-- [ ] Inline SVG rendering
+- [ ] Fuzz testing on parsers (cargo-fuzz)
+- [ ] Property-based testing (quickcheck / proptest)
 
 ## License
 
