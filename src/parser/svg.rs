@@ -893,4 +893,939 @@ mod tests {
             }
         }
     }
+
+    // ── Helper to build ElementNode for tests ──────────────────────────
+
+    use crate::parser::dom::{DomNode, HtmlTag};
+    use std::collections::HashMap;
+
+    fn make_el(raw_tag: &str, attrs: Vec<(&str, &str)>) -> ElementNode {
+        let mut attributes = HashMap::new();
+        for (k, v) in attrs {
+            attributes.insert(k.to_string(), v.to_string());
+        }
+        ElementNode {
+            tag: HtmlTag::Unknown,
+            raw_tag_name: raw_tag.to_string(),
+            attributes,
+            children: Vec::new(),
+        }
+    }
+
+    fn make_svg_el(attrs: Vec<(&str, &str)>, children: Vec<ElementNode>) -> ElementNode {
+        let mut attributes = HashMap::new();
+        for (k, v) in attrs {
+            attributes.insert(k.to_string(), v.to_string());
+        }
+        ElementNode {
+            tag: HtmlTag::Svg,
+            raw_tag_name: "svg".to_string(),
+            attributes,
+            children: children.into_iter().map(DomNode::Element).collect(),
+        }
+    }
+
+    // ── parse_length edge cases ────────────────────────────────────────
+
+    #[test]
+    fn parse_length_plain_number() {
+        assert_eq!(parse_length("42"), Some(42.0));
+    }
+
+    #[test]
+    fn parse_length_with_px_suffix() {
+        assert_eq!(parse_length("100px"), Some(100.0));
+    }
+
+    #[test]
+    fn parse_length_with_em_suffix() {
+        assert_eq!(parse_length("1.5em"), Some(1.5));
+    }
+
+    #[test]
+    fn parse_length_with_percent() {
+        assert_eq!(parse_length("50%"), Some(50.0));
+    }
+
+    #[test]
+    fn parse_length_with_whitespace() {
+        assert_eq!(parse_length("  200  "), Some(200.0));
+    }
+
+    #[test]
+    fn parse_length_invalid() {
+        assert_eq!(parse_length("abc"), None);
+    }
+
+    #[test]
+    fn parse_length_empty() {
+        assert_eq!(parse_length(""), None);
+    }
+
+    // ── parse_viewbox edge cases ───────────────────────────────────────
+
+    #[test]
+    fn parse_viewbox_comma_separated() {
+        let vb = parse_viewbox("0,0,100,200").unwrap();
+        assert_eq!(
+            (vb.min_x, vb.min_y, vb.width, vb.height),
+            (0.0, 0.0, 100.0, 200.0)
+        );
+    }
+
+    #[test]
+    fn parse_viewbox_space_separated() {
+        let vb = parse_viewbox("10 20 300 400").unwrap();
+        assert_eq!(
+            (vb.min_x, vb.min_y, vb.width, vb.height),
+            (10.0, 20.0, 300.0, 400.0)
+        );
+    }
+
+    #[test]
+    fn parse_viewbox_mixed_separators() {
+        let vb = parse_viewbox("5, 10  200, 300").unwrap();
+        assert_eq!(
+            (vb.min_x, vb.min_y, vb.width, vb.height),
+            (5.0, 10.0, 200.0, 300.0)
+        );
+    }
+
+    #[test]
+    fn parse_viewbox_too_few_values() {
+        assert!(parse_viewbox("0 0 100").is_none());
+    }
+
+    #[test]
+    fn parse_viewbox_too_many_values() {
+        assert!(parse_viewbox("0 0 100 200 300").is_none());
+    }
+
+    #[test]
+    fn parse_viewbox_invalid_number() {
+        assert!(parse_viewbox("0 abc 100 200").is_none());
+    }
+
+    // ── parse_svg_color edge cases ─────────────────────────────────────
+
+    #[test]
+    fn parse_svg_color_hex_3_char() {
+        let c = parse_svg_color("#f00").unwrap();
+        assert_eq!(c, (1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn parse_svg_color_hex_3_char_white() {
+        let c = parse_svg_color("#fff").unwrap();
+        assert_eq!(c, (1.0, 1.0, 1.0));
+    }
+
+    #[test]
+    fn parse_svg_color_hex_invalid_length() {
+        assert!(parse_svg_color("#abcd").is_none());
+    }
+
+    #[test]
+    fn parse_svg_color_rgb_func() {
+        let c = parse_svg_color("rgb(255, 0, 128)").unwrap();
+        assert!((c.0 - 1.0).abs() < 0.01);
+        assert!((c.1 - 0.0).abs() < 0.01);
+        assert!((c.2 - 128.0 / 255.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_svg_color_rgb_func_with_spaces() {
+        let c = parse_svg_color("rgb( 0 , 128 , 255 )").unwrap();
+        assert!((c.0 - 0.0).abs() < 0.01);
+        assert!((c.1 - 128.0 / 255.0).abs() < 0.01);
+        assert!((c.2 - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_svg_color_rgb_invalid_components() {
+        // Only 2 components
+        assert!(parse_svg_color("rgb(255, 0)").is_none());
+    }
+
+    #[test]
+    fn parse_svg_color_rgb_non_numeric() {
+        assert!(parse_svg_color("rgb(a, b, c)").is_none());
+    }
+
+    #[test]
+    fn parse_svg_color_named_black() {
+        assert_eq!(parse_svg_color("black"), Some((0.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn parse_svg_color_named_white() {
+        assert_eq!(parse_svg_color("white"), Some((1.0, 1.0, 1.0)));
+    }
+
+    #[test]
+    fn parse_svg_color_named_green() {
+        assert_eq!(parse_svg_color("green"), Some((0.0, 128.0 / 255.0, 0.0)));
+    }
+
+    #[test]
+    fn parse_svg_color_named_blue() {
+        assert_eq!(parse_svg_color("blue"), Some((0.0, 0.0, 1.0)));
+    }
+
+    #[test]
+    fn parse_svg_color_named_yellow() {
+        assert_eq!(parse_svg_color("yellow"), Some((1.0, 1.0, 0.0)));
+    }
+
+    #[test]
+    fn parse_svg_color_named_cyan() {
+        assert_eq!(parse_svg_color("cyan"), Some((0.0, 1.0, 1.0)));
+    }
+
+    #[test]
+    fn parse_svg_color_named_magenta() {
+        assert_eq!(parse_svg_color("magenta"), Some((1.0, 0.0, 1.0)));
+    }
+
+    #[test]
+    fn parse_svg_color_named_gray() {
+        let expected = (128.0 / 255.0, 128.0 / 255.0, 128.0 / 255.0);
+        assert_eq!(parse_svg_color("gray"), Some(expected));
+        assert_eq!(parse_svg_color("grey"), Some(expected));
+    }
+
+    #[test]
+    fn parse_svg_color_named_orange() {
+        assert_eq!(parse_svg_color("orange"), Some((1.0, 165.0 / 255.0, 0.0)));
+    }
+
+    #[test]
+    fn parse_svg_color_unknown_name() {
+        assert!(parse_svg_color("papayawhip").is_none());
+    }
+
+    #[test]
+    fn parse_svg_color_none_case_insensitive() {
+        assert_eq!(parse_svg_color("None"), None);
+        assert_eq!(parse_svg_color("NONE"), None);
+    }
+
+    #[test]
+    fn parse_svg_color_with_leading_trailing_spaces() {
+        assert_eq!(parse_svg_color("  red  "), Some((1.0, 0.0, 0.0)));
+    }
+
+    // ── parse_points edge cases ────────────────────────────────────────
+
+    #[test]
+    fn parse_points_space_only() {
+        let pts = parse_points("10 20 30 40");
+        assert_eq!(pts, vec![(10.0, 20.0), (30.0, 40.0)]);
+    }
+
+    #[test]
+    fn parse_points_odd_count() {
+        // Odd number of values: last unpaired value is ignored
+        let pts = parse_points("10,20,30");
+        assert_eq!(pts, vec![(10.0, 20.0)]);
+    }
+
+    #[test]
+    fn parse_points_empty() {
+        let pts = parse_points("");
+        assert!(pts.is_empty());
+    }
+
+    #[test]
+    fn parse_points_extra_whitespace() {
+        let pts = parse_points("  1 , 2  ,  3 , 4  ");
+        assert_eq!(pts, vec![(1.0, 2.0), (3.0, 4.0)]);
+    }
+
+    // ── Path command edge cases ────────────────────────────────────────
+
+    #[test]
+    fn parse_path_relative_move() {
+        let cmds = parse_path_data("m 5 10 l 3 4");
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[0], PathCommand::MoveTo(5.0, 10.0));
+        assert_eq!(cmds[1], PathCommand::LineTo(8.0, 14.0));
+    }
+
+    #[test]
+    fn parse_path_relative_h_v() {
+        let cmds = parse_path_data("M 10 20 h 5 v 10");
+        assert_eq!(cmds.len(), 3);
+        assert_eq!(cmds[0], PathCommand::MoveTo(10.0, 20.0));
+        assert_eq!(cmds[1], PathCommand::LineTo(15.0, 20.0));
+        assert_eq!(cmds[2], PathCommand::LineTo(15.0, 30.0));
+    }
+
+    #[test]
+    fn parse_path_relative_cubic() {
+        let cmds = parse_path_data("M 10 10 c 5 0 5 5 0 5");
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[0], PathCommand::MoveTo(10.0, 10.0));
+        assert_eq!(
+            cmds[1],
+            PathCommand::CubicTo(15.0, 10.0, 15.0, 15.0, 10.0, 15.0)
+        );
+    }
+
+    #[test]
+    fn parse_path_smooth_cubic_s() {
+        // S command: reflects previous control point
+        let cmds = parse_path_data("M 0 0 C 10 0 20 10 20 20 S 30 40 20 40");
+        assert_eq!(cmds.len(), 3);
+        assert_eq!(cmds[0], PathCommand::MoveTo(0.0, 0.0));
+        assert_eq!(
+            cmds[1],
+            PathCommand::CubicTo(10.0, 0.0, 20.0, 10.0, 20.0, 20.0)
+        );
+        // Reflected control: 2*20 - 20 = 20, 2*20 - 10 = 30
+        assert_eq!(
+            cmds[2],
+            PathCommand::CubicTo(20.0, 30.0, 30.0, 40.0, 20.0, 40.0)
+        );
+    }
+
+    #[test]
+    fn parse_path_smooth_cubic_s_relative() {
+        let cmds = parse_path_data("M 10 10 C 15 10 20 15 20 20 s 5 10 0 10");
+        assert_eq!(cmds.len(), 3);
+        // After C: cur=(20,20), last_ctrl=(20,15)
+        // Reflected: (2*20-20, 2*20-15) = (20, 25)
+        // s relative: x2=20+5=25, y2=20+10=30, x=20+0=20, y=20+10=30
+        assert_eq!(
+            cmds[2],
+            PathCommand::CubicTo(20.0, 25.0, 25.0, 30.0, 20.0, 30.0)
+        );
+    }
+
+    #[test]
+    fn parse_path_quad_q() {
+        let cmds = parse_path_data("M 0 0 Q 10 20 30 40");
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[1], PathCommand::QuadTo(10.0, 20.0, 30.0, 40.0));
+    }
+
+    #[test]
+    fn parse_path_quad_relative_q() {
+        let cmds = parse_path_data("M 10 10 q 5 10 15 20");
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[1], PathCommand::QuadTo(15.0, 20.0, 25.0, 30.0));
+    }
+
+    #[test]
+    fn parse_path_smooth_quad_t() {
+        let cmds = parse_path_data("M 0 0 Q 10 20 20 20 T 40 0");
+        assert_eq!(cmds.len(), 3);
+        // After Q: cur=(20,20), last_ctrl=(10,20)
+        // T reflected: (2*20-10, 2*20-20) = (30, 20)
+        assert_eq!(cmds[2], PathCommand::QuadTo(30.0, 20.0, 40.0, 0.0));
+    }
+
+    #[test]
+    fn parse_path_smooth_quad_t_relative() {
+        let cmds = parse_path_data("M 0 0 Q 5 10 10 10 t 10 0");
+        assert_eq!(cmds.len(), 3);
+        // After Q: cur=(10,10), last_ctrl=(5,10)
+        // t reflected: (2*10-5, 2*10-10) = (15, 10)
+        // t relative endpoint: (10+10, 10+0) = (20, 10)
+        assert_eq!(cmds[2], PathCommand::QuadTo(15.0, 10.0, 20.0, 10.0));
+    }
+
+    #[test]
+    fn parse_path_lowercase_z() {
+        let cmds = parse_path_data("M 0 0 L 10 0 z");
+        assert_eq!(cmds.len(), 3);
+        assert_eq!(cmds[2], PathCommand::ClosePath);
+    }
+
+    #[test]
+    fn parse_path_implicit_lineto_after_move() {
+        // After M, implicit repeated coordinates become L
+        let cmds = parse_path_data("M 0 0 10 10 20 20");
+        assert_eq!(cmds.len(), 3);
+        assert_eq!(cmds[0], PathCommand::MoveTo(0.0, 0.0));
+        assert_eq!(cmds[1], PathCommand::LineTo(10.0, 10.0));
+        assert_eq!(cmds[2], PathCommand::LineTo(20.0, 20.0));
+    }
+
+    #[test]
+    fn parse_path_implicit_lineto_after_relative_move() {
+        let cmds = parse_path_data("m 0 0 10 10");
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[0], PathCommand::MoveTo(0.0, 0.0));
+        // implicit 'l' after 'm': relative
+        assert_eq!(cmds[1], PathCommand::LineTo(10.0, 10.0));
+    }
+
+    #[test]
+    fn parse_path_negative_numbers() {
+        let cmds = parse_path_data("M -5 -10 L -20 -30");
+        assert_eq!(cmds[0], PathCommand::MoveTo(-5.0, -10.0));
+        assert_eq!(cmds[1], PathCommand::LineTo(-20.0, -30.0));
+    }
+
+    #[test]
+    fn parse_path_numbers_without_space() {
+        // Negative sign acts as separator
+        let cmds = parse_path_data("M10-20L30-40");
+        assert_eq!(cmds[0], PathCommand::MoveTo(10.0, -20.0));
+        assert_eq!(cmds[1], PathCommand::LineTo(30.0, -40.0));
+    }
+
+    #[test]
+    fn parse_path_decimal_without_leading_zero() {
+        let cmds = parse_path_data("M .5 .5 L 1.5 1.5");
+        assert_eq!(cmds[0], PathCommand::MoveTo(0.5, 0.5));
+        assert_eq!(cmds[1], PathCommand::LineTo(1.5, 1.5));
+    }
+
+    #[test]
+    fn parse_path_consecutive_decimals() {
+        // Two decimals separated by dot: "0.5.5" should be 0.5 and .5
+        let cmds = parse_path_data("M 0.5.5 1.5.5");
+        assert_eq!(cmds[0], PathCommand::MoveTo(0.5, 0.5));
+        assert_eq!(cmds[1], PathCommand::LineTo(1.5, 0.5));
+    }
+
+    #[test]
+    fn parse_path_empty() {
+        let cmds = parse_path_data("");
+        assert!(cmds.is_empty());
+    }
+
+    #[test]
+    fn parse_path_unknown_command_skipped() {
+        // 'A' (arc) is not supported; it should be skipped
+        let cmds = parse_path_data("M 0 0 A 1 1 0 0 1 10 10 L 20 20");
+        // M produces MoveTo, then A is unknown and chars get skipped,
+        // eventually L 20 20 is parsed
+        assert!(cmds.iter().any(|c| *c == PathCommand::MoveTo(0.0, 0.0)));
+    }
+
+    // ── parse_transform edge cases ─────────────────────────────────────
+
+    #[test]
+    fn parse_transform_rotate_with_center() {
+        let t = parse_transform("rotate(90, 50, 50)").unwrap();
+        match t {
+            SvgTransform::Matrix(a, b, c, d, e, f) => {
+                let cos90 = 90.0_f32.to_radians().cos();
+                let sin90 = 90.0_f32.to_radians().sin();
+                assert!((a - cos90).abs() < 0.01);
+                assert!((b - sin90).abs() < 0.01);
+                assert!((c - (-sin90)).abs() < 0.01);
+                assert!((d - cos90).abs() < 0.01);
+                // tx = cx - cos*cx + sin*cy = 50 - cos90*50 + sin90*50
+                let tx = 50.0 - cos90 * 50.0 + sin90 * 50.0;
+                let ty = 50.0 - sin90 * 50.0 - cos90 * 50.0;
+                assert!((e - tx).abs() < 0.01);
+                assert!((f - ty).abs() < 0.01);
+            }
+        }
+    }
+
+    #[test]
+    fn parse_transform_scale_xy() {
+        let t = parse_transform("scale(2, 3)").unwrap();
+        match t {
+            SvgTransform::Matrix(a, _b, _c, d, _e, _f) => {
+                assert!((a - 2.0).abs() < 0.001);
+                assert!((d - 3.0).abs() < 0.001);
+            }
+        }
+    }
+
+    #[test]
+    fn parse_transform_translate_single_value() {
+        // translate with one value: ty defaults to 0
+        let t = parse_transform("translate(10)").unwrap();
+        match t {
+            SvgTransform::Matrix(_a, _b, _c, _d, e, f) => {
+                assert!((e - 10.0).abs() < 0.001);
+                assert!((f - 0.0).abs() < 0.001);
+            }
+        }
+    }
+
+    #[test]
+    fn parse_transform_unknown() {
+        assert!(parse_transform("skewX(30)").is_none());
+    }
+
+    #[test]
+    fn parse_transform_empty() {
+        assert!(parse_transform("").is_none());
+    }
+
+    // ── parse_svg_node for element types ───────────────────────────────
+
+    #[test]
+    fn parse_node_rect() {
+        let el = make_el(
+            "rect",
+            vec![
+                ("x", "10"),
+                ("y", "20"),
+                ("width", "100"),
+                ("height", "50"),
+                ("rx", "5"),
+                ("ry", "3"),
+            ],
+        );
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Rect {
+                x,
+                y,
+                width,
+                height,
+                rx,
+                ry,
+                ..
+            } => {
+                assert_eq!(
+                    (x, y, width, height, rx, ry),
+                    (10.0, 20.0, 100.0, 50.0, 5.0, 3.0)
+                );
+            }
+            _ => panic!("Expected Rect"),
+        }
+    }
+
+    #[test]
+    fn parse_node_circle() {
+        let el = make_el("circle", vec![("cx", "50"), ("cy", "50"), ("r", "25")]);
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Circle { cx, cy, r, .. } => {
+                assert_eq!((cx, cy, r), (50.0, 50.0, 25.0));
+            }
+            _ => panic!("Expected Circle"),
+        }
+    }
+
+    #[test]
+    fn parse_node_ellipse() {
+        let el = make_el(
+            "ellipse",
+            vec![("cx", "50"), ("cy", "50"), ("rx", "30"), ("ry", "20")],
+        );
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Ellipse { cx, cy, rx, ry, .. } => {
+                assert_eq!((cx, cy, rx, ry), (50.0, 50.0, 30.0, 20.0));
+            }
+            _ => panic!("Expected Ellipse"),
+        }
+    }
+
+    #[test]
+    fn parse_node_line() {
+        let el = make_el(
+            "line",
+            vec![("x1", "0"), ("y1", "0"), ("x2", "100"), ("y2", "100")],
+        );
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Line { x1, y1, x2, y2, .. } => {
+                assert_eq!((x1, y1, x2, y2), (0.0, 0.0, 100.0, 100.0));
+            }
+            _ => panic!("Expected Line"),
+        }
+    }
+
+    #[test]
+    fn parse_node_polyline() {
+        let el = make_el("polyline", vec![("points", "0,0 10,20 30,40")]);
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Polyline { points, .. } => {
+                assert_eq!(points, vec![(0.0, 0.0), (10.0, 20.0), (30.0, 40.0)]);
+            }
+            _ => panic!("Expected Polyline"),
+        }
+    }
+
+    #[test]
+    fn parse_node_polyline_no_points() {
+        let el = make_el("polyline", vec![]);
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Polyline { points, .. } => {
+                assert!(points.is_empty());
+            }
+            _ => panic!("Expected Polyline"),
+        }
+    }
+
+    #[test]
+    fn parse_node_polygon() {
+        let el = make_el("polygon", vec![("points", "0,0 50,0 50,50 0,50")]);
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Polygon { points, .. } => {
+                assert_eq!(points.len(), 4);
+            }
+            _ => panic!("Expected Polygon"),
+        }
+    }
+
+    #[test]
+    fn parse_node_path() {
+        let el = make_el("path", vec![("d", "M 0 0 L 10 10 Z")]);
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Path { commands, .. } => {
+                assert_eq!(commands.len(), 3);
+            }
+            _ => panic!("Expected Path"),
+        }
+    }
+
+    #[test]
+    fn parse_node_path_no_d_attr() {
+        let el = make_el("path", vec![]);
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Path { commands, .. } => {
+                assert!(commands.is_empty());
+            }
+            _ => panic!("Expected Path"),
+        }
+    }
+
+    #[test]
+    fn parse_node_group() {
+        let child = make_el("rect", vec![("width", "10"), ("height", "10")]);
+        let mut group = make_el("g", vec![("transform", "translate(5,5)")]);
+        group.children.push(DomNode::Element(child));
+        let node = parse_svg_node(&group).unwrap();
+        match node {
+            SvgNode::Group {
+                transform,
+                children,
+                ..
+            } => {
+                assert!(transform.is_some());
+                assert_eq!(children.len(), 1);
+            }
+            _ => panic!("Expected Group"),
+        }
+    }
+
+    #[test]
+    fn parse_node_group_with_text_child_ignored() {
+        let mut group = make_el("g", vec![]);
+        group.children.push(DomNode::Text("hello".to_string()));
+        let node = parse_svg_node(&group).unwrap();
+        match node {
+            SvgNode::Group { children, .. } => {
+                assert!(children.is_empty());
+            }
+            _ => panic!("Expected Group"),
+        }
+    }
+
+    #[test]
+    fn parse_node_unknown_tag_returns_none() {
+        let el = make_el("text", vec![]);
+        assert!(parse_svg_node(&el).is_none());
+    }
+
+    // ── parse_svg_style ────────────────────────────────────────────────
+
+    #[test]
+    fn parse_style_defaults() {
+        let el = make_el("rect", vec![]);
+        let style = parse_svg_style(&el);
+        assert!(style.fill.is_none());
+        assert!(style.stroke.is_none());
+        assert_eq!(style.stroke_width, 1.0);
+        assert_eq!(style.opacity, 1.0);
+    }
+
+    #[test]
+    fn parse_style_with_fill_stroke() {
+        let el = make_el(
+            "rect",
+            vec![
+                ("fill", "#ff0000"),
+                ("stroke", "blue"),
+                ("stroke-width", "2.5"),
+                ("opacity", "0.5"),
+            ],
+        );
+        let style = parse_svg_style(&el);
+        assert_eq!(style.fill, Some((1.0, 0.0, 0.0)));
+        assert_eq!(style.stroke, Some((0.0, 0.0, 1.0)));
+        assert!((style.stroke_width - 2.5).abs() < 0.001);
+        assert!((style.opacity - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn parse_style_fill_none() {
+        let el = make_el("rect", vec![("fill", "none")]);
+        let style = parse_svg_style(&el);
+        assert!(style.fill.is_none());
+    }
+
+    #[test]
+    fn parse_style_stroke_none() {
+        let el = make_el("rect", vec![("stroke", "none")]);
+        let style = parse_svg_style(&el);
+        assert!(style.stroke.is_none());
+    }
+
+    // ── parse_svg_from_element ─────────────────────────────────────────
+
+    #[test]
+    fn parse_svg_from_element_basic() {
+        let rect = make_el("rect", vec![("width", "50"), ("height", "30")]);
+        let svg = make_svg_el(
+            vec![
+                ("width", "200"),
+                ("height", "100"),
+                ("viewBox", "0 0 200 100"),
+            ],
+            vec![rect],
+        );
+        let tree = parse_svg_from_element(&svg).unwrap();
+        assert_eq!(tree.width, 200.0);
+        assert_eq!(tree.height, 100.0);
+        assert!(tree.view_box.is_some());
+        assert_eq!(tree.children.len(), 1);
+    }
+
+    #[test]
+    fn parse_svg_from_element_defaults() {
+        let svg = make_svg_el(vec![], vec![]);
+        let tree = parse_svg_from_element(&svg).unwrap();
+        assert_eq!(tree.width, 300.0);
+        assert_eq!(tree.height, 150.0);
+        assert!(tree.view_box.is_none());
+        assert!(tree.children.is_empty());
+    }
+
+    #[test]
+    fn parse_svg_from_element_text_children_ignored() {
+        let mut svg = make_svg_el(vec![("width", "100"), ("height", "100")], vec![]);
+        svg.children.push(DomNode::Text("some text".to_string()));
+        let tree = parse_svg_from_element(&svg).unwrap();
+        assert!(tree.children.is_empty());
+    }
+
+    #[test]
+    fn parse_svg_from_element_unknown_child_skipped() {
+        let text_el = make_el("text", vec![]);
+        let svg = make_svg_el(vec![("width", "100"), ("height", "100")], vec![text_el]);
+        let tree = parse_svg_from_element(&svg).unwrap();
+        assert!(tree.children.is_empty());
+    }
+
+    // ── attr_f32 ───────────────────────────────────────────────────────
+
+    #[test]
+    fn attr_f32_present() {
+        let el = make_el("rect", vec![("x", "42px")]);
+        assert_eq!(attr_f32(&el, "x"), 42.0);
+    }
+
+    #[test]
+    fn attr_f32_missing() {
+        let el = make_el("rect", vec![]);
+        assert_eq!(attr_f32(&el, "x"), 0.0);
+    }
+
+    // ── tokenize_path edge cases ───────────────────────────────────────
+
+    #[test]
+    fn tokenize_path_commas_and_spaces() {
+        let tokens = tokenize_path("M10,20 L30,40");
+        assert_eq!(
+            tokens,
+            vec!["M", "10", "20", "L", "30", "40"]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn tokenize_path_negative_after_number() {
+        let tokens = tokenize_path("M10-20");
+        assert_eq!(
+            tokens,
+            vec!["M", "10", "-20"]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn tokenize_path_double_dot() {
+        let tokens = tokenize_path("0.5.5");
+        assert_eq!(
+            tokens,
+            vec!["0.5", ".5"]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    // ── read_number / read_pair / read_four / read_six edge cases ──────
+
+    #[test]
+    fn read_number_past_end() {
+        let tokens: Vec<String> = vec![];
+        let mut i = 0;
+        assert!(read_number(&tokens, &mut i).is_none());
+    }
+
+    #[test]
+    fn read_number_non_numeric() {
+        let tokens = vec!["abc".to_string()];
+        let mut i = 0;
+        assert!(read_number(&tokens, &mut i).is_none());
+    }
+
+    #[test]
+    fn read_pair_insufficient_tokens() {
+        let tokens = vec!["5".to_string()];
+        let mut i = 0;
+        assert!(read_pair(&tokens, &mut i).is_none());
+    }
+
+    #[test]
+    fn read_four_insufficient_tokens() {
+        let tokens = vec!["1".to_string(), "2".to_string(), "3".to_string()];
+        let mut i = 0;
+        assert!(read_four(&tokens, &mut i).is_none());
+    }
+
+    #[test]
+    fn read_six_insufficient_tokens() {
+        let tokens = vec![
+            "1".to_string(),
+            "2".to_string(),
+            "3".to_string(),
+            "4".to_string(),
+            "5".to_string(),
+        ];
+        let mut i = 0;
+        assert!(read_six(&tokens, &mut i).is_none());
+    }
+
+    // ── extract_func_args / parse_num_list ─────────────────────────────
+
+    #[test]
+    fn extract_func_args_basic() {
+        assert_eq!(
+            extract_func_args("translate(10, 20)", "translate"),
+            Some("10, 20".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_func_args_not_found() {
+        assert_eq!(extract_func_args("translate(10, 20)", "rotate"), None);
+    }
+
+    #[test]
+    fn extract_func_args_no_parens() {
+        assert_eq!(extract_func_args("translate", "translate"), None);
+    }
+
+    #[test]
+    fn parse_num_list_basic() {
+        let nums = parse_num_list("1, 2.5, 3");
+        assert_eq!(nums, vec![1.0, 2.5, 3.0]);
+    }
+
+    #[test]
+    fn parse_num_list_empty() {
+        let nums = parse_num_list("");
+        assert!(nums.is_empty());
+    }
+
+    #[test]
+    fn parse_num_list_with_invalid() {
+        // Invalid entries are skipped by filter_map
+        let nums = parse_num_list("1, abc, 3");
+        assert_eq!(nums, vec![1.0, 3.0]);
+    }
+
+    // ── Nested SVG element in group ────────────────────────────────────
+
+    #[test]
+    fn parse_node_nested_svg_acts_as_group() {
+        let inner = make_el("rect", vec![("width", "10"), ("height", "10")]);
+        let mut svg_inner = make_el("svg", vec![]);
+        svg_inner.children.push(DomNode::Element(inner));
+        let node = parse_svg_node(&svg_inner).unwrap();
+        match node {
+            SvgNode::Group { children, .. } => {
+                assert_eq!(children.len(), 1);
+            }
+            _ => panic!("Expected Group for inner svg"),
+        }
+    }
+
+    // ── Polygon without points ─────────────────────────────────────────
+
+    #[test]
+    fn parse_node_polygon_no_points() {
+        let el = make_el("polygon", vec![]);
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Polygon { points, .. } => {
+                assert!(points.is_empty());
+            }
+            _ => panic!("Expected Polygon"),
+        }
+    }
+
+    // ── Rect with missing attributes defaults to 0 ─────────────────────
+
+    #[test]
+    fn parse_node_rect_defaults() {
+        let el = make_el("rect", vec![]);
+        let node = parse_svg_node(&el).unwrap();
+        match node {
+            SvgNode::Rect {
+                x,
+                y,
+                width,
+                height,
+                rx,
+                ry,
+                ..
+            } => {
+                assert_eq!(
+                    (x, y, width, height, rx, ry),
+                    (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                );
+            }
+            _ => panic!("Expected Rect"),
+        }
+    }
+
+    // ── Group without transform ────────────────────────────────────────
+
+    #[test]
+    fn parse_node_group_no_transform() {
+        let group = make_el("g", vec![]);
+        let node = parse_svg_node(&group).unwrap();
+        match node {
+            SvgNode::Group { transform, .. } => {
+                assert!(transform.is_none());
+            }
+            _ => panic!("Expected Group"),
+        }
+    }
 }

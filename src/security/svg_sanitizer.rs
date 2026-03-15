@@ -327,4 +327,199 @@ mod tests {
         assert!(!result.contains("href"));
         assert!(!result.contains("evil.com"));
     }
+
+    #[test]
+    fn sanitize_exceeds_max_elements_returns_empty_svg() {
+        // Build an SVG with more than MAX_SVG_ELEMENTS opening tags
+        let mut input = String::from("<svg>");
+        for _ in 0..MAX_SVG_ELEMENTS + 1 {
+            input.push_str("<rect/>");
+        }
+        input.push_str("</svg>");
+        let result = sanitize_svg(&input);
+        assert_eq!(result, "<svg></svg>");
+    }
+
+    #[test]
+    fn sanitize_nested_blocked_elements() {
+        let input = "<svg><script><script>inner</script></script><rect/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("script"));
+        assert!(!result.contains("inner"));
+        assert!(result.contains("rect"));
+    }
+
+    #[test]
+    fn sanitize_unclosed_blocked_element_no_gt() {
+        // A blocked tag with no closing tag and no '>' — triggers the break branch (line 81)
+        // The tag persists because there's no '>' to close it, but the break is exercised.
+        let input = "<svg><rect/><script";
+        let result = sanitize_svg(input);
+        // The unclosed fragment remains since there is no '>' to find
+        assert!(result.contains("<script"));
+    }
+
+    #[test]
+    fn sanitize_self_closing_blocked_element() {
+        // A blocked tag with opening but no closing, has '>' — triggers (Some(s), None) branch
+        let input = "<svg><image src='evil.png'/><rect/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("image"));
+        assert!(!result.contains("evil.png"));
+        assert!(result.contains("rect"));
+    }
+
+    #[test]
+    fn sanitize_strips_xlink_href() {
+        let input = r#"<svg><rect xlink:href="http://evil.com" width="10"/></svg>"#;
+        let result = sanitize_svg(input);
+        assert!(!result.contains("xlink:href"));
+        assert!(!result.contains("evil.com"));
+    }
+
+    #[test]
+    fn sanitize_strips_xlink_href_mixed_case() {
+        let input = r#"<svg><rect Xlink:Href="http://evil.com" width="10"/></svg>"#;
+        let result = sanitize_svg(input);
+        assert!(!result.contains("Xlink:Href"));
+        assert!(!result.contains("evil.com"));
+    }
+
+    #[test]
+    fn sanitize_event_handler_mixed_case() {
+        let input = r#"<svg><rect OnClick="alert(1)" width="10"/></svg>"#;
+        let result = sanitize_svg(input);
+        assert!(!result.contains("OnClick"));
+        assert!(!result.contains("alert"));
+        assert!(result.contains("rect"));
+    }
+
+    #[test]
+    fn sanitize_event_handler_with_tab_separator() {
+        let input = "<svg><rect\tonclick=\"alert(1)\" width=\"10\"/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("onclick"));
+    }
+
+    #[test]
+    fn sanitize_event_handler_with_newline_separator() {
+        let input = "<svg><rect\nonclick=\"alert(1)\" width=\"10\"/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("onclick"));
+    }
+
+    #[test]
+    fn sanitize_removes_javascript_urls() {
+        let input = r#"<svg><rect fill="javascript:void(0)"/></svg>"#;
+        let result = sanitize_svg(input);
+        assert!(!result.contains("javascript:"));
+        // The "void(0)" part remains since only the "javascript:" prefix is stripped
+    }
+
+    #[test]
+    fn sanitize_removes_javascript_urls_mixed_case() {
+        let input = r#"<svg><rect fill="JavaScript:void(0)"/></svg>"#;
+        let result = sanitize_svg(input);
+        assert!(!result.contains("JavaScript:"));
+        assert!(!result.contains("javascript:"));
+    }
+
+    #[test]
+    fn sanitize_removes_multiple_javascript_urls() {
+        let input = r#"<svg><rect fill="javascript:x" stroke="javascript:y"/></svg>"#;
+        let result = sanitize_svg(input);
+        assert!(!result.contains("javascript:"));
+    }
+
+    #[test]
+    fn sanitize_strips_unknown_elements_keeps_text() {
+        let input = "<svg><div>hello</div><rect/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("<div"));
+        assert!(!result.contains("</div>"));
+        assert!(result.contains("hello"));
+        assert!(result.contains("rect"));
+    }
+
+    #[test]
+    fn sanitize_empty_svg() {
+        let result = sanitize_svg("");
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn sanitize_text_only_content() {
+        let result = sanitize_svg("just plain text");
+        assert_eq!(result, "just plain text");
+    }
+
+    #[test]
+    fn sanitize_unclosed_tag_in_strip_unknown() {
+        // An unclosed '<' with no '>' triggers the else branch in strip_unknown_elements
+        let input = "<svg><rect/></svg><broken";
+        let result = sanitize_svg(input);
+        // The '<' is preserved as-is since there's no closing '>'
+        assert!(result.contains("<broken"));
+    }
+
+    #[test]
+    fn sanitize_unquoted_attribute_value() {
+        // An event handler with an unquoted value exercises the unquoted branch in skip_attribute
+        let input = "<svg><rect onclick=alert width=\"10\"/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("onclick"));
+        assert!(!result.contains("alert"));
+    }
+
+    #[test]
+    fn sanitize_attribute_with_whitespace_after_equals() {
+        // Whitespace between = and the quoted value exercises that branch in skip_attribute
+        let input = "<svg><rect onclick= \"alert(1)\" width=\"10\"/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("onclick"));
+        assert!(!result.contains("alert"));
+    }
+
+    #[test]
+    fn sanitize_attribute_with_single_quotes() {
+        let input = "<svg><rect onclick='alert(1)' width='10'/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("onclick"));
+        assert!(!result.contains("alert"));
+    }
+
+    #[test]
+    fn sanitize_at_element_limit_passes() {
+        // Exactly MAX_SVG_ELEMENTS should be allowed
+        let mut input = String::from("<svg>");
+        for _ in 0..MAX_SVG_ELEMENTS - 1 {
+            input.push_str("<rect/>");
+        }
+        input.push_str("</svg>");
+        let result = sanitize_svg(&input);
+        assert!(result.contains("rect"));
+        assert_ne!(result, "<svg></svg>");
+    }
+
+    #[test]
+    fn sanitize_xlink_href_with_tab_prefix() {
+        let input = "<svg><rect\txlink:href=\"http://evil.com\" width=\"10\"/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("xlink:href"));
+    }
+
+    #[test]
+    fn sanitize_xlink_href_with_newline_prefix() {
+        let input = "<svg><rect\nxlink:href=\"http://evil.com\" width=\"10\"/></svg>";
+        let result = sanitize_svg(input);
+        assert!(!result.contains("xlink:href"));
+    }
+
+    #[test]
+    fn sanitize_href_after_colon() {
+        // href preceded by ':' (like in xlink:href) should also be stripped
+        let input = r#"<svg><rect xlink:href="http://evil.com" width="10"/></svg>"#;
+        let result = sanitize_svg(input);
+        assert!(!result.contains("href"));
+    }
 }
