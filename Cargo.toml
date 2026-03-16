@@ -15,12 +15,15 @@ exclude = [".github/", ".claude/", "target/", "docs/"]
 [features]
 default = []
 async = ["tokio"]
+wasm = ["wasm-bindgen", "js-sys"]
 
 [dependencies]
 html5ever = "0.27"
 markup5ever_rcdom = "0.3"
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "rt"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

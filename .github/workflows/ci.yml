@@ -35,6 +35,36 @@ jobs:
           components: rustfmt
       - run: cargo fmt --check
 
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/wasm-pack
+          key: wasm-pack-${{ runner.os }}-v1
+      - run: command -v wasm-pack || cargo install wasm-pack
+      - run: wasm-pack build --target web --features wasm --no-default-features
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: cargo-fuzz-${{ runner.os }}-v1
+      - run: command -v cargo-fuzz || cargo install cargo-fuzz
+      - run: |
+          for target in fuzz_html fuzz_css fuzz_markdown fuzz_full_pipeline fuzz_svg fuzz_table_flex; do
+            echo "=== Fuzzing $target for 30s ==="
+            cargo fuzz run "$target" -- -max_total_time=30
+          done
+
   coverage:
     runs-on: ubuntu-latest
     steps:
