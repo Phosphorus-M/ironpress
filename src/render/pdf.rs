@@ -1417,28 +1417,24 @@ fn render_cell_text(
     custom_fonts: &HashMap<String, TtfFont>,
 ) {
     let cell_inner_w = col_width - cell.padding_left - cell.padding_right;
-    // Vertical centering using font metrics: place glyphs so the visual
-    // midpoint between ascender top and descender bottom sits at the row's
-    // vertical center.
+    // Vertical centering: place text block so its visual center aligns with
+    // the row's vertical center.  In PDF, the baseline is where we position
+    // text — glyphs extend upward by ascender and downward by descender.
     let text_h: f32 = cell.lines.iter().map(|l| l.height).sum();
-    let font_size = cell
-        .lines
-        .first()
-        .and_then(|l| l.runs.first())
-        .map_or(12.0, |r| r.font_size);
-    let font_family = cell
-        .lines
-        .first()
-        .and_then(|l| l.runs.first())
-        .map_or(FontFamily::Helvetica, |r| r.font_family.clone());
-    let ascender = crate::fonts::ascender_ratio(&font_family) * font_size;
-    let descender = crate::fonts::descender_ratio(&font_family) * font_size;
-    let visual_center = row_y - row_height / 2.0;
-    let mut text_y = visual_center + text_h / 2.0 + (ascender - descender) / 2.0 - ascender;
+
+    // Top of the text block, centered in the row
+    let text_block_top = row_y - (row_height - text_h) / 2.0;
+    let mut text_y = text_block_top;
     for line in &cell.lines {
         let line_font_size = line.runs.iter().map(|r| r.font_size).fold(0.0f32, f32::max);
+        let line_family = line
+            .runs
+            .first()
+            .map_or(FontFamily::Helvetica, |r| r.font_family.clone());
+        let line_ascender = crate::fonts::ascender_ratio(&line_family) * line_font_size;
         let half_leading = (line.height - line_font_size) / 2.0;
-        text_y -= line_font_size + half_leading;
+        // Baseline sits at: top of line - half_leading - ascender
+        text_y -= half_leading + line_ascender;
         let text_content: String = line.runs.iter().map(|r| r.text.as_str()).collect();
         if text_content.is_empty() {
             continue;
@@ -1513,6 +1509,8 @@ fn render_cell_text(
 
             x += rw;
         }
+        // Move past the rest of the line (descender + bottom half-leading)
+        text_y -= line.height - half_leading - line_ascender;
     }
 }
 
@@ -2780,6 +2778,61 @@ mod tests {
         let pdf = crate::html_to_pdf("<p>Test</p>").unwrap();
         let content = String::from_utf8_lossy(&pdf);
         assert!(!content.contains("Page 1 of"));
+    }
+
+    #[test]
+    fn render_header_only_no_footer() {
+        let pdf = crate::HtmlConverter::new()
+            .header("Header Only")
+            .convert("<p>Content</p>")
+            .unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Header Only"));
+        assert!(!content.contains("Page 1"));
+    }
+
+    #[test]
+    fn render_footer_only_no_header() {
+        let pdf = crate::HtmlConverter::new()
+            .footer("{page}/{pages}")
+            .convert("<p>Content</p>")
+            .unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("1/1"));
+    }
+
+    #[test]
+    fn render_progress_bar_zero_fraction() {
+        let html = r#"<progress value="0" max="1"></progress>"#;
+        let pdf = crate::html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        // Track is drawn but fill is skipped when fraction=0
+        assert!(content.contains("re\nf\n")); // track rect
+        assert!(content.contains("re\nS\n")); // border stroke
+    }
+
+    #[test]
+    fn render_progress_bar_full_fraction() {
+        let html = r#"<progress value="1" max="1"></progress>"#;
+        let pdf = crate::html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn render_bookmark_special_chars() {
+        let html = r#"<h1>Title with (parens) &amp; "quotes"</h1>"#;
+        let pdf = crate::html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("/Type /Outlines"));
+    }
+
+    #[test]
+    fn render_single_heading_bookmark() {
+        let html = "<h1>Only One</h1><p>Text</p>";
+        let pdf = crate::html_to_pdf(html).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("/Count 1"));
+        assert!(content.contains("Only One"));
     }
 
     #[test]

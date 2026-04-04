@@ -1108,6 +1108,71 @@ fn main() {
         assert!(fetch_remote_bytes("https://example.com/test").is_none());
     }
 
+    #[test]
+    fn remote_image_produces_valid_pdf() {
+        // Remote images are silently ignored without the "remote" feature
+        let html =
+            r#"<img src="https://example.com/test.png" width="100" height="100"><p>Text</p>"#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("Text"));
+    }
+
+    #[test]
+    fn remote_font_face_produces_valid_pdf() {
+        // Remote font-face URLs are parsed but font loading is skipped without "remote" feature
+        let html = r#"
+            <style>
+                @font-face { font-family: "RemoteFont"; src: url("https://example.com/font.ttf"); }
+                p { font-family: RemoteFont; }
+            </style>
+            <p>Fallback to Helvetica</p>
+        "#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn header_footer_with_special_chars() {
+        let pdf = HtmlConverter::new()
+            .header("Report (Draft)")
+            .footer("Page {page} / {pages}")
+            .convert("<p>Content</p>")
+            .unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn multi_column_full_pipeline() {
+        let html = r#"
+            <style>.cols { column-count: 2; column-gap: 10pt; }</style>
+            <div class="cols"><div>Left</div><div>Right</div></div>
+        "#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn grid_repeat_full_pipeline() {
+        let html = r#"
+            <style>.g { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5pt; }</style>
+            <div class="g"><div>A</div><div>B</div><div>C</div></div>
+        "#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn grid_minmax_full_pipeline() {
+        let html = r#"
+            <style>.g { display: grid; grid-template-columns: minmax(50px, 1fr) 2fr; }</style>
+            <div class="g"><div>A</div><div>B</div></div>
+        "#;
+        let pdf = html_to_pdf(html).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
     // --- Async tests (feature-gated) ---
 
     #[cfg(feature = "async")]

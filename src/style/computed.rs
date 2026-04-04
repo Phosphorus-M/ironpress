@@ -4708,6 +4708,56 @@ mod tests {
         assert_eq!(style.column_count, Some(2));
     }
 
+    #[test]
+    fn column_count_initial_resets() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("column-count: initial"), &parent);
+        assert_eq!(style.column_count, None);
+    }
+
+    #[test]
+    fn column_count_inherit_from_parent() {
+        let mut parent = ComputedStyle::default();
+        parent.column_count = Some(3);
+        let style = compute_style(HtmlTag::Div, Some("column-count: inherit"), &parent);
+        assert_eq!(style.column_count, Some(3));
+    }
+
+    #[test]
+    fn column_gap_initial_resets() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("column-gap: initial"), &parent);
+        assert!((style.column_gap - 0.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn column_count_invalid_value_ignored() {
+        let parent = ComputedStyle::default();
+        let style = compute_style(HtmlTag::Div, Some("column-count: auto"), &parent);
+        assert_eq!(style.column_count, None);
+    }
+
+    #[test]
+    fn grid_template_columns_repeat_single() {
+        let tracks = parse_grid_template_columns("repeat(1, 100pt)");
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0], GridTrack::Fixed(100.0));
+    }
+
+    #[test]
+    fn grid_minmax_auto_min() {
+        let tracks = parse_grid_template_columns("minmax(auto, 200pt)");
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0], GridTrack::Minmax(0.0, 200.0));
+    }
+
+    #[test]
+    fn grid_minmax_auto_max() {
+        let tracks = parse_grid_template_columns("minmax(50pt, auto)");
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0], GridTrack::Minmax(50.0, f32::MAX));
+    }
+
     // --- parse_hex_to_color invalid length (line 1313) ---
 
     #[test]

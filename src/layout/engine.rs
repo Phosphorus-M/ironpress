@@ -8547,4 +8547,162 @@ mod _removed {
             "Expected 2 rows from 4 items in 2-column layout"
         );
     }
+
+    #[test]
+    fn layout_input_empty_no_value() {
+        let html = r#"<input type="text">"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+    }
+
+    #[test]
+    fn layout_select_empty_options() {
+        let html = r#"<select></select>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+    }
+
+    #[test]
+    fn layout_textarea_empty() {
+        let html = r#"<textarea></textarea>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+    }
+
+    #[test]
+    fn layout_video_with_css_dimensions() {
+        let html = r#"<video style="width: 400px; height: 300px"></video>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        assert!(!pages[0].elements.is_empty());
+    }
+
+    #[test]
+    fn layout_audio_with_css_dimensions() {
+        let html = r#"<audio style="width: 250px"></audio>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+    }
+
+    #[test]
+    fn layout_progress_no_value_attr() {
+        let html = r#"<progress></progress>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        assert_eq!(pages.len(), 1);
+        let bar = pages[0].elements.iter().find_map(|(_, el)| {
+            if let LayoutElement::ProgressBar { fraction, .. } = el {
+                Some(*fraction)
+            } else {
+                None
+            }
+        });
+        assert_eq!(bar, Some(0.0));
+    }
+
+    #[test]
+    fn layout_meter_no_thresholds() {
+        let html = r#"<meter value="50" max="100"></meter>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let fill = pages[0].elements.iter().find_map(|(_, el)| {
+            if let LayoutElement::ProgressBar { fill_color, .. } = el {
+                Some(*fill_color)
+            } else {
+                None
+            }
+        });
+        // 50/100 = 0.5, between default low (25) and high (75) → yellow
+        assert!(fill.is_some());
+        let (r, _, _) = fill.unwrap();
+        assert!(r > 0.9, "Expected yellow fill for mid-range meter");
+    }
+
+    #[test]
+    fn layout_meter_zero_max() {
+        let html = r#"<meter value="5" max="0"></meter>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let bar = pages[0].elements.iter().find_map(|(_, el)| {
+            if let LayoutElement::ProgressBar { fraction, .. } = el {
+                Some(*fraction)
+            } else {
+                None
+            }
+        });
+        assert_eq!(bar, Some(0.0), "Zero max should produce 0 fraction");
+    }
+
+    #[test]
+    fn heading_level_returns_correct_values() {
+        assert_eq!(heading_level(HtmlTag::H1), Some(1));
+        assert_eq!(heading_level(HtmlTag::H2), Some(2));
+        assert_eq!(heading_level(HtmlTag::H3), Some(3));
+        assert_eq!(heading_level(HtmlTag::H4), Some(4));
+        assert_eq!(heading_level(HtmlTag::H5), Some(5));
+        assert_eq!(heading_level(HtmlTag::H6), Some(6));
+        assert_eq!(heading_level(HtmlTag::P), None);
+        assert_eq!(heading_level(HtmlTag::Div), None);
+    }
+
+    #[test]
+    fn layout_heading_has_level_in_textblock() {
+        let html = "<h2>Section Title</h2>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let has_heading = pages[0].elements.iter().any(|(_, el)| {
+            matches!(
+                el,
+                LayoutElement::TextBlock {
+                    heading_level: Some(2),
+                    ..
+                }
+            )
+        });
+        assert!(
+            has_heading,
+            "h2 should produce TextBlock with heading_level=2"
+        );
+    }
+
+    #[test]
+    fn layout_paragraph_has_no_heading_level() {
+        let html = "<p>Just text</p>";
+        let nodes = parse_html(html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let has_heading = pages[0].elements.iter().any(|(_, el)| {
+            matches!(
+                el,
+                LayoutElement::TextBlock {
+                    heading_level: Some(_),
+                    ..
+                }
+            )
+        });
+        assert!(!has_heading, "p should not have a heading_level");
+    }
+
+    #[test]
+    fn column_count_1_not_grid() {
+        // column-count: 1 should not trigger grid layout
+        let css = ".cols { column-count: 1; }";
+        let rules = parse_stylesheet(css);
+        let html = r#"<div class="cols"><p>Single column</p></div>"#;
+        let nodes = parse_html(html).unwrap();
+        let pages = layout_with_rules(&nodes, PageSize::A4, Margin::default(), &rules);
+        let grid_rows: Vec<_> = pages[0]
+            .elements
+            .iter()
+            .filter(|(_, el)| matches!(el, LayoutElement::GridRow { .. }))
+            .collect();
+        assert!(
+            grid_rows.is_empty(),
+            "column-count: 1 should not produce grid rows"
+        );
+    }
 }
