@@ -59,9 +59,16 @@ for layer in features combined edge-cases; do
         # Convert PDF page 1 to PNG at 150 DPI
         render_prefix="$TMPDIR_WORK/${layer}_${name}"
         pdftoppm -r 150 -png -f 1 -l 1 "$pdf_file" "$render_prefix" 2>/dev/null
-        render_png="${render_prefix}-1.png"
+        # pdftoppm names output -1.png or -01.png depending on page count
+        render_png=""
+        for candidate in "${render_prefix}-1.png" "${render_prefix}-01.png" "${render_prefix}-001.png"; do
+            if [ -f "$candidate" ]; then
+                render_png="$candidate"
+                break
+            fi
+        done
 
-        if [ ! -f "$render_png" ]; then
+        if [ -z "$render_png" ]; then
             echo "| $name | $layer | - | - | - | RENDER FAILED |"
             continue
         fi
