@@ -8187,4 +8187,245 @@ mod tests {
             "Should render second row second cell"
         );
     }
+
+    // ── unicode_to_symbol ───────────────────────────────────────────────
+
+    #[test]
+    fn unicode_to_symbol_greek_lowercase() {
+        assert_eq!(unicode_to_symbol('\u{03B1}'), Some(0x61)); // α
+        assert_eq!(unicode_to_symbol('\u{03C0}'), Some(0x70)); // π
+        assert_eq!(unicode_to_symbol('\u{03C9}'), Some(0x77)); // ω
+    }
+
+    #[test]
+    fn unicode_to_symbol_greek_uppercase() {
+        assert_eq!(unicode_to_symbol('\u{0393}'), Some(0x47)); // Γ
+        assert_eq!(unicode_to_symbol('\u{03A9}'), Some(0x57)); // Ω
+        assert_eq!(unicode_to_symbol('\u{03A3}'), Some(0x53)); // Σ
+    }
+
+    #[test]
+    fn unicode_to_symbol_operators() {
+        assert_eq!(unicode_to_symbol('\u{2211}'), Some(0xE5)); // ∑
+        assert_eq!(unicode_to_symbol('\u{222B}'), Some(0xF2)); // ∫
+        assert_eq!(unicode_to_symbol('\u{221E}'), Some(0xA5)); // ∞
+    }
+
+    #[test]
+    fn unicode_to_symbol_relations() {
+        assert_eq!(unicode_to_symbol('\u{2264}'), Some(0xA3)); // ≤
+        assert_eq!(unicode_to_symbol('\u{2265}'), Some(0xB3)); // ≥
+        assert_eq!(unicode_to_symbol('\u{2260}'), Some(0xB9)); // ≠
+        assert_eq!(unicode_to_symbol('\u{2208}'), Some(0xCE)); // ∈
+    }
+
+    #[test]
+    fn unicode_to_symbol_arrows() {
+        assert_eq!(unicode_to_symbol('\u{2192}'), Some(0xAE)); // →
+        assert_eq!(unicode_to_symbol('\u{2190}'), Some(0xAC)); // ←
+        assert_eq!(unicode_to_symbol('\u{21D2}'), Some(0xDE)); // ⇒
+    }
+
+    #[test]
+    fn unicode_to_symbol_delimiters() {
+        assert_eq!(unicode_to_symbol('\u{27E8}'), Some(0xE1)); // ⟨
+        assert_eq!(unicode_to_symbol('\u{27E9}'), Some(0xF1)); // ⟩
+        assert_eq!(unicode_to_symbol('\u{230A}'), Some(0xEB)); // ⌊
+        assert_eq!(unicode_to_symbol('\u{2309}'), Some(0xF9)); // ⌉
+    }
+
+    #[test]
+    fn unicode_to_symbol_binary_ops() {
+        assert_eq!(unicode_to_symbol('\u{00D7}'), Some(0xB4)); // ×
+        assert_eq!(unicode_to_symbol('\u{00F7}'), Some(0xB8)); // ÷
+        assert_eq!(unicode_to_symbol('\u{00B1}'), Some(0xB1)); // ±
+    }
+
+    #[test]
+    fn unicode_to_symbol_misc() {
+        assert_eq!(unicode_to_symbol('\u{2202}'), Some(0xB6)); // ∂
+        assert_eq!(unicode_to_symbol('\u{2207}'), Some(0xD1)); // ∇
+        assert_eq!(unicode_to_symbol('\u{2200}'), Some(0x22)); // ∀
+        assert_eq!(unicode_to_symbol('\u{2203}'), Some(0x24)); // ∃
+        assert_eq!(unicode_to_symbol('\u{2205}'), Some(0xC6)); // ∅
+    }
+
+    #[test]
+    fn unicode_to_symbol_returns_none_for_ascii() {
+        assert_eq!(unicode_to_symbol('A'), None);
+        assert_eq!(unicode_to_symbol('x'), None);
+        assert_eq!(unicode_to_symbol('+'), None);
+    }
+
+    // ── render_math_glyphs ──────────────────────────────────────────────
+
+    #[test]
+    fn render_math_glyphs_char_italic() {
+        use crate::layout::math::MathGlyph;
+        let glyphs = vec![MathGlyph::Char {
+            ch: 'x',
+            x: 10.0,
+            y: 20.0,
+            font_size: 12.0,
+            italic: true,
+        }];
+        let mut content = String::new();
+        render_math_glyphs(&glyphs, 0.0, 0.0, &mut content);
+        assert!(content.contains("Helvetica-Oblique"));
+        assert!(content.contains("12 Tf"));
+    }
+
+    #[test]
+    fn render_math_glyphs_char_regular() {
+        use crate::layout::math::MathGlyph;
+        let glyphs = vec![MathGlyph::Char {
+            ch: '2',
+            x: 0.0,
+            y: 0.0,
+            font_size: 10.0,
+            italic: false,
+        }];
+        let mut content = String::new();
+        render_math_glyphs(&glyphs, 5.0, 5.0, &mut content);
+        assert!(content.contains("/Helvetica 10"));
+        assert!(content.contains("(2) Tj"));
+    }
+
+    #[test]
+    fn render_math_glyphs_symbol_char() {
+        use crate::layout::math::MathGlyph;
+        let glyphs = vec![MathGlyph::Char {
+            ch: '\u{03B1}', // α
+            x: 0.0,
+            y: 0.0,
+            font_size: 12.0,
+            italic: false,
+        }];
+        let mut content = String::new();
+        render_math_glyphs(&glyphs, 0.0, 0.0, &mut content);
+        assert!(content.contains("/Symbol 12 Tf"));
+    }
+
+    #[test]
+    fn render_math_glyphs_text() {
+        use crate::layout::math::MathGlyph;
+        let glyphs = vec![MathGlyph::Text {
+            text: "lim".to_string(),
+            x: 0.0,
+            y: 0.0,
+            font_size: 12.0,
+        }];
+        let mut content = String::new();
+        render_math_glyphs(&glyphs, 0.0, 0.0, &mut content);
+        assert!(content.contains("/Helvetica 12 Tf"));
+        assert!(content.contains("(lim) Tj"));
+    }
+
+    #[test]
+    fn render_math_glyphs_rule() {
+        use crate::layout::math::MathGlyph;
+        let glyphs = vec![MathGlyph::Rule {
+            x: 10.0,
+            y: 20.0,
+            width: 50.0,
+            thickness: 0.5,
+        }];
+        let mut content = String::new();
+        render_math_glyphs(&glyphs, 0.0, 0.0, &mut content);
+        assert!(content.contains("re\nf\n"));
+    }
+
+    #[test]
+    fn render_math_glyphs_radical() {
+        use crate::layout::math::MathGlyph;
+        let glyphs = vec![MathGlyph::Radical {
+            x: 0.0,
+            y: 0.0,
+            width: 30.0,
+            height: 15.0,
+            font_size: 12.0,
+        }];
+        let mut content = String::new();
+        render_math_glyphs(&glyphs, 0.0, 0.0, &mut content);
+        // Radical draws lines
+        assert!(content.contains(" l\n"));
+        assert!(content.contains("S\n"));
+    }
+
+    #[test]
+    fn render_math_glyphs_delimiter_small() {
+        use crate::layout::math::MathGlyph;
+        // Small delimiter: height <= font_size * 1.3, renders as text
+        let glyphs = vec![MathGlyph::Delimiter {
+            ch: '(',
+            x: 0.0,
+            y: 0.0,
+            height: 12.0,
+            font_size: 12.0,
+        }];
+        let mut content = String::new();
+        render_math_glyphs(&glyphs, 0.0, 0.0, &mut content);
+        assert!(content.contains("Tf\n"));
+    }
+
+    #[test]
+    fn render_math_glyphs_delimiter_large() {
+        use crate::layout::math::MathGlyph;
+        // Large delimiter: height > font_size * 1.3, renders as paths
+        let glyphs = vec![MathGlyph::Delimiter {
+            ch: '(',
+            x: 0.0,
+            y: 0.0,
+            height: 30.0,
+            font_size: 12.0,
+        }];
+        let mut content = String::new();
+        render_math_glyphs(&glyphs, 0.0, 0.0, &mut content);
+        assert!(content.contains(" c\n")); // cubic bezier for parenthesis
+    }
+
+    // ── Math integration via HTML ───────────────────────────────────────
+
+    #[test]
+    fn math_inline_produces_symbol_font_in_pdf() {
+        let html = r#"<span class="math-inline" data-math="\alpha + \beta">α+β</span>"#;
+        let pdf = crate::html_to_pdf(html).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/Symbol"));
+    }
+
+    #[test]
+    fn math_display_produces_valid_pdf() {
+        let html = r#"<div class="math-display" data-math="\frac{a}{b}">a/b</div>"#;
+        let pdf = crate::html_to_pdf(html).unwrap();
+        assert!(pdf.len() > 100);
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("%PDF"));
+    }
+
+    #[test]
+    fn math_markdown_inline_renders() {
+        let pdf = crate::markdown_to_pdf("The equation $E = mc^2$ is famous.").unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("BT\n"));
+        assert!(pdf.len() > 200);
+    }
+
+    #[test]
+    fn math_markdown_display_renders() {
+        let pdf = crate::markdown_to_pdf("$$\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}$$").unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/Symbol"));
+    }
+
+    #[test]
+    fn math_mixed_text_and_math() {
+        let pdf =
+            crate::markdown_to_pdf("For $x > 0$, we have $f(x) = x^2$ and $g(x) = \\sqrt{x}$.")
+                .unwrap();
+        assert!(pdf.len() > 200);
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("%PDF"));
+        assert!(text.contains("%%EOF"));
+    }
 }
