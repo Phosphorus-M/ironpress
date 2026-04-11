@@ -129,7 +129,7 @@ jobs:
         run: bash scripts/generate-references.sh
 
       - name: Compare PDFs with Chromium references
-        run: bash scripts/compare-parity.sh /tmp/parity-pdfs 60 2>&1 | tee /tmp/parity-report.txt || true
+        run: bash scripts/compare-parity.sh /tmp/parity-pdfs 65 2>&1 | tee /tmp/parity-report.txt || true
 
       - name: Extract reports
         id: reports
