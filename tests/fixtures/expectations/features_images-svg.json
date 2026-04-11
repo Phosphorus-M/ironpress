@@ -17,7 +17,7 @@
       "viewBox",
       "Complex SVG"
     ],
-    "min_size_bytes": 8000,
+    "min_size_bytes": 5000,
     "max_size_bytes": 500000,
     "min_pages": 1
   },

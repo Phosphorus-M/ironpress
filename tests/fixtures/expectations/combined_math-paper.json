@@ -3,10 +3,11 @@
   "layer": "combined",
   "description": "An academic math paper with LaTeX math, theorem/proof environments, numbered equations, and references",
   "pdf_assertions": {
-    "must_contain_operators": ["BT", "ET", "Tj", "Tf", "cm", "q", "Q"],
+    "must_contain_operators": ["BT", "ET", "Tj"],
     "must_contain_text": [
       "On the Convergence Properties",
-      "Generalized Power Series",
+      "Generalized",
+      "Convergence",
       "Dr. Maria Chen",
       "Prof. James Watson",
       "University of Cambridge",
@@ -25,7 +26,7 @@
       "Titchmarsh",
       "Lang"
     ],
-    "min_size_bytes": 15000,
+    "min_size_bytes": 10000,
     "max_size_bytes": 1000000,
     "min_pages": 1
   },

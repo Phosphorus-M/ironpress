@@ -103,8 +103,10 @@ fn verify_expectations(fixture_key: &str, pdf: &[u8]) {
         }
     };
 
-    let expectations: serde_json::Value = serde_json::from_str(&json_str)
-        .expect(&format!("Failed to parse expectations JSON for '{}'", fixture_key));
+    let expectations: serde_json::Value = serde_json::from_str(&json_str).expect(&format!(
+        "Failed to parse expectations JSON for '{}'",
+        fixture_key
+    ));
 
     let pdf_text = String::from_utf8_lossy(pdf);
 
@@ -428,7 +430,8 @@ fn parity_benchmark_report() {
             all_valid = false;
         }
 
-        let (size_diff, time_diff) = compute_baseline_diff(&baseline, &r.fixture, r.pdf_size, r.render_time_us);
+        let (size_diff, time_diff) =
+            compute_baseline_diff(&baseline, &r.fixture, r.pdf_size, r.render_time_us);
 
         println!(
             "| {:<35} | {:>10} | {:>10} | {:>12} | {:>12} | {:>5} |",
@@ -468,7 +471,9 @@ fn parity_benchmark_report() {
 
     // Print baseline info.
     println!("Baseline: {}", baseline_summary(&baseline));
-    println!("(Run with --ignored to update the report; baseline values of 0 indicate not yet populated.)");
+    println!(
+        "(Run with --ignored to update the report; baseline values of 0 indicate not yet populated.)"
+    );
     println!();
 
     // Assert everything passed.

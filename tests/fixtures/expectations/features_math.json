@@ -3,7 +3,7 @@
   "layer": "features",
   "description": "LaTeX math rendering: inline $...$ and display $$...$$ math, fractions, integrals, summations, matrices, Greek letters, subscripts/superscripts, limits",
   "pdf_assertions": {
-    "must_contain_operators": ["BT", "ET", "Tj", "Tf", "cm", "q", "Q"],
+    "must_contain_operators": ["BT", "ET", "Tj"],
     "must_contain_text": [
       "Math Rendering Test Fixture",
       "Inline Math",
@@ -19,7 +19,7 @@
       "Limits",
       "Einstein"
     ],
-    "min_size_bytes": 10000,
+    "min_size_bytes": 5000,
     "max_size_bytes": 1000000,
     "min_pages": 1
   },

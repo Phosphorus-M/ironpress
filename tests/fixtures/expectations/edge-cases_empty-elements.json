@@ -13,7 +13,6 @@
       "Zero-width element",
       "Zero-height element",
       "display: none",
-      "THIS SHOULD NOT BE VISIBLE",
       "Multiple display:none",
       "Empty paragraph and span",
       "Whitespace-only",

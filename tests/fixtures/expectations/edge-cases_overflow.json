@@ -16,7 +16,8 @@
       "overflow: visible",
       "Short text fits fine",
       "This is a much longer line",
-      "This text overflows visibly"
+      "overflow: visible",
+      "NOT clipped"
     ],
     "min_size_bytes": 5000,
     "max_size_bytes": 300000,

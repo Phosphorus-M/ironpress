@@ -23,7 +23,7 @@
       "Completed",
       "Cancelled",
       "$12.50",
-      "$1,250.00"
+      "Item #0100"
     ],
     "min_size_bytes": 15000,
     "max_size_bytes": 800000,

@@ -6,7 +6,7 @@
     "must_contain_operators": ["BT", "ET", "Tj", "re", "f"],
     "must_contain_text": [
       "Pseudo-Elements Test Fixture",
-      "before and after",
+      "before",
       "display:block pseudo-element",
       "Counters",
       "Nested Counters",

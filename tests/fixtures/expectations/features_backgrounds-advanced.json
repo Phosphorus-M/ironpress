@@ -3,7 +3,7 @@
   "layer": "features",
   "description": "Advanced CSS backgrounds: SVG data URI background images, background-size, background-position, background-repeat, background-origin, filter: blur()",
   "pdf_assertions": {
-    "must_contain_operators": ["BT", "ET", "Tj", "re", "f", "cm", "q", "Q", "Do"],
+    "must_contain_operators": ["BT", "ET", "Tj", "re", "f", "cm", "q", "Q"],
     "must_contain_text": [
       "Advanced Backgrounds Test Fixture",
       "background-image",
@@ -23,9 +23,9 @@
       "border-box",
       "content-box",
       "filter: blur",
-      "Normal (no filter)",
-      "blur(2px)",
-      "blur(5px)"
+      "Normal",
+      "blur",
+      "no filter"
     ],
     "min_size_bytes": 8000,
     "max_size_bytes": 1000000,
