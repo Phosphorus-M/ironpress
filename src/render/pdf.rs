@@ -7235,6 +7235,103 @@ mod tests {
         assert!(content.contains("/Colors 1"));
     }
 
+    #[test]
+    fn render_rgba_png_image_emits_smask() {
+        let png_bytes = build_test_rgba_png(2, 2);
+        let b64 = simple_base64_encode_test(&png_bytes);
+        let html = format!(r#"<img src="data:image/png;base64,{b64}" width="40" height="40">"#);
+        let nodes = parse_html(&html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+
+        let image_objects = content.matches("/Subtype /Image").count();
+        assert_eq!(
+            image_objects, 2,
+            "RGBA PNG should produce a color XObject and a separate alpha XObject"
+        );
+        assert!(
+            content.contains("/SMask "),
+            "RGBA PNG color XObject should reference an /SMask"
+        );
+        assert!(
+            content.contains("/ColorSpace /DeviceRGB"),
+            "Color XObject should use DeviceRGB"
+        );
+        assert!(
+            content.contains("/ColorSpace /DeviceGray"),
+            "Alpha XObject should use DeviceGray"
+        );
+        assert!(
+            !content.contains("/Colors 4"),
+            "RGBA must not be embedded as a 4-channel DeviceRGB stream"
+        );
+    }
+
+    #[test]
+    fn render_grayscale_alpha_png_image_emits_smask() {
+        let png_bytes = build_test_grayscale_alpha_png(2, 2);
+        let b64 = simple_base64_encode_test(&png_bytes);
+        let html = format!(r#"<img src="data:image/png;base64,{b64}" width="40" height="40">"#);
+        let nodes = parse_html(&html).unwrap();
+        let pages = layout(&nodes, PageSize::A4, Margin::default());
+        let pdf = render_pdf(&pages, PageSize::A4, Margin::default()).unwrap();
+        let content = String::from_utf8_lossy(&pdf);
+
+        assert_eq!(
+            content.matches("/Subtype /Image").count(),
+            2,
+            "Grayscale+Alpha PNG should produce two image XObjects"
+        );
+        assert!(content.contains("/SMask "));
+        assert!(
+            !content.contains("/Colors 2"),
+            "Grayscale+Alpha must not be embedded as a 2-channel DeviceGray stream"
+        );
+    }
+
+    fn build_test_rgba_png(width: u32, height: u32) -> Vec<u8> {
+        let mut pixels = Vec::with_capacity((width * height * 4) as usize);
+        for i in 0..(width * height) {
+            let v = (i * 32) as u8;
+            pixels.extend_from_slice(&[v, 255 - v, 128, (v.wrapping_add(16))]);
+        }
+
+        let buffer = image::ImageBuffer::from_raw(width, height, pixels)
+            .expect("rgba buffer should be valid");
+
+        let mut encoded = Vec::new();
+        image::DynamicImage::ImageRgba8(buffer)
+            .write_to(
+                &mut std::io::Cursor::new(&mut encoded),
+                image::ImageFormat::Png,
+            )
+            .expect("png encode");
+        encoded
+    }
+
+    fn build_test_grayscale_alpha_png(width: u32, height: u32) -> Vec<u8> {
+        let mut pixels = Vec::with_capacity((width * height * 2) as usize);
+
+        for i in 0..(width * height) {
+            let v = (i * 32) as u8;
+            pixels.extend_from_slice(&[v, (v.wrapping_add(8))]);
+        }
+
+        let buffer =
+            image::ImageBuffer::from_raw(width, height, pixels)
+                .expect("luma+alpha buffer should be valid");
+
+        let mut encoded = Vec::new();
+        image::DynamicImage::ImageLumaA8(buffer)
+            .write_to(
+                &mut std::io::Cursor::new(&mut encoded),
+                image::ImageFormat::Png,
+            )
+            .expect("png encode");
+        encoded
+    }
+
     /// Build a minimal valid PNG (1x1 RGB, 8-bit).
     fn build_minimal_test_png() -> Vec<u8> {
         build_test_png_with_color_type(2) // RGB
