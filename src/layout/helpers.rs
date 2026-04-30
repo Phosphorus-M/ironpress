@@ -212,11 +212,11 @@ pub(crate) fn collapse_margins_through_parent(
 // ---------------------------------------------------------------------------
 
 pub(crate) fn recurses_as_layout_child(tag: HtmlTag) -> bool {
-    tag.is_block() || tag == HtmlTag::Svg
+    tag.is_block() || tag == HtmlTag::Svg || tag == HtmlTag::Img
 }
 
 pub(crate) fn collects_as_inline_text(tag: HtmlTag) -> bool {
-    tag != HtmlTag::Svg && tag.is_inline()
+    tag != HtmlTag::Svg && tag != HtmlTag::Img && tag.is_inline()
 }
 
 // ---------------------------------------------------------------------------

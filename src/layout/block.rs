@@ -483,6 +483,8 @@ pub(crate) fn layout_block_element(
                 matches!(c, DomNode::Element(e)
                     if (has_own_margins(e.tag)
                         || (e.tag.is_block() && !collects_as_inline_text(e.tag))
+                        || e.tag == HtmlTag::Img
+                        || e.tag == HtmlTag::Svg
                         || element_has_css_display_block(e, style, env.rules, child_ancestors))
                         && !element_is_inline_block(
                             e, style, env.rules, child_ancestors, 0, 0, &[]))
@@ -653,6 +655,7 @@ pub(crate) fn layout_block_element(
                     DomNode::Element(child_el)
                         if (child_el.tag.is_block()
                             || child_el.tag == HtmlTag::Svg
+                            || child_el.tag == HtmlTag::Img
                             || element_has_css_display_block(
                                 child_el,
                                 style,
